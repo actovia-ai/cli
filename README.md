@@ -1,6 +1,6 @@
-# exodus-cli
+# actovia-cli
 
-A CLI for the exodus ecosystem: launch the Exodus desktop app, check for CLI
+A CLI for the Actovia ecosystem: launch the Actovia desktop app, check for CLI
 updates, and browse/install [Agent Skills](https://skills.sh) from the
 terminal — either interactively or as scriptable JSON-emitting commands.
 
@@ -10,30 +10,30 @@ terminal — either interactively or as scriptable JSON-emitting commands.
 Bun and its compiled bundle runs under the Bun runtime, not plain Node.js.
 
 ```bash
-npm install -g exodus-cli
+npm install -g actovia-cli
 # or, without installing:
-bunx exodus-cli --help
+bunx actovia-cli --help
 ```
 
 Prefer not to install Bun? Download a standalone binary for your platform
-from the [latest GitHub release](https://github.com/exodus-ai-org/exodus-cli/releases/latest)
+from the [latest GitHub release](https://github.com/actovia-ai/cli/releases/latest)
 instead — no Bun or Node required.
 
 ## Commands
 
 ```bash
-exodus open                       # launch the Exodus desktop app
-exodus update [--check]           # check for a newer exodus-cli version
-exodus skills                     # interactive TUI: browse, view audits, install/uninstall
-exodus skills search <query> [--json]
-exodus skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills
-exodus skills list           [--json]
-exodus skills uninstall <slug> [--json]
-exodus --help
+actovia open                       # launch the Actovia desktop app
+actovia update [--check]           # check for a newer actovia-cli version
+actovia skills                     # interactive TUI: browse, view audits, install/uninstall
+actovia skills search <query> [--json]
+actovia skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills
+actovia skills list           [--json]
+actovia skills uninstall <slug> [--json]
+actovia --help
 ```
 
 Skills install into `~/.exodus/skills/<slug>/`, the same directory
-`universal-client` (the Exodus desktop app) reads — a skill installed via
+`universal-client` (the Actovia desktop app) reads — a skill installed via
 this CLI is immediately usable there too.
 
 ## Development

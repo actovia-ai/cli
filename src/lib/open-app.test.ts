@@ -3,11 +3,34 @@ import { describe, expect, test } from 'bun:test'
 import { openExodusApp } from './open-app'
 
 describe('openExodusApp', () => {
-  test('darwin: reports not-found when Exodus.app is not installed', async () => {
-    // CI/dev sandboxes never have Exodus.app installed, so `open -a Exodus`
-    // genuinely fails here — this exercises the real code path, no mocking.
-    const result = await openExodusApp('darwin')
+  test('darwin: opens Actovia first', async () => {
+    const tried: string[] = []
+    const result = await openExodusApp('darwin', async (name) => {
+      tried.push(name)
+      return true
+    })
+    expect(result.status).toBe('opened')
+    expect(tried).toEqual(['Actovia'])
+  })
+
+  test('darwin: falls back to Exodus when Actovia is missing', async () => {
+    const tried: string[] = []
+    const result = await openExodusApp('darwin', async (name) => {
+      tried.push(name)
+      return name === 'Exodus'
+    })
+    expect(result.status).toBe('opened')
+    expect(tried).toEqual(['Actovia', 'Exodus'])
+  })
+
+  test('darwin: reports not-found when neither app is installed', async () => {
+    const tried: string[] = []
+    const result = await openExodusApp('darwin', async (name) => {
+      tried.push(name)
+      return false
+    })
     expect(result.status).toBe('not-found')
+    expect(tried).toEqual(['Actovia', 'Exodus'])
   })
 
   test('win32: reports not-found when no known install path exists', async () => {

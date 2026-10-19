@@ -98,7 +98,7 @@ describe('getUpdateNotice', () => {
 
   test('tells the user how to upgrade', () => {
     const notice = getUpdateNotice('1.0.0', { checkedAt: 0, latest: '1.2.0' })
-    expect(notice).toContain('exodus update')
+    expect(notice).toContain('actovia update')
   })
 })
 

@@ -21,11 +21,11 @@ mkdir -p release-binaries
 
 # name : bun --compile --target value
 declare -A TARGETS=(
-  [exodus-darwin-arm64]=bun-darwin-arm64
-  [exodus-darwin-x64]=bun-darwin-x64
-  [exodus-linux-arm64]=bun-linux-arm64
-  [exodus-linux-x64]=bun-linux-x64
-  [exodus-windows-x64.exe]=bun-windows-x64
+  [actovia-darwin-arm64]=bun-darwin-arm64
+  [actovia-darwin-x64]=bun-darwin-x64
+  [actovia-linux-arm64]=bun-linux-arm64
+  [actovia-linux-x64]=bun-linux-x64
+  [actovia-windows-x64.exe]=bun-windows-x64
 )
 
 failed=()

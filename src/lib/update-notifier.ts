@@ -55,7 +55,7 @@ export function isCacheStale(cache: UpdateCache | null, now: number = Date.now()
 
 export function getUpdateNotice(current: string, cache: UpdateCache | null): string | null {
   if (!cache || !isNewerVersion(current, cache.latest)) return null
-  return `Update available: ${current} → ${cache.latest}. Run: exodus update`
+  return `Update available: ${current} → ${cache.latest}. Run: actovia update`
 }
 
 /** The compact form shown inside the TUI tab bar, where space is tight. */

@@ -4,7 +4,7 @@ import { DIST_CHANNEL } from './dist-channel'
 export { DIST_CHANNEL }
 
 export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org'
-export const DEFAULT_GITHUB_API = 'https://api.github.com/repos/exodus-ai-org/exodus-cli'
+export const DEFAULT_GITHUB_API = 'https://api.github.com/repos/actovia-ai/cli'
 
 export function getCurrentVersion(): string {
   return currentVersion
@@ -27,13 +27,13 @@ export function pickReleaseAssetName(platform: NodeJS.Platform, arch: string): s
   if (!platformName) return null
   if (arch !== 'x64' && arch !== 'arm64') return null
   const suffix = platform === 'win32' ? '.exe' : ''
-  return `exodus-${platformName}-${arch}${suffix}`
+  return `actovia-${platformName}-${arch}${suffix}`
 }
 
 export async function getLatestNpmVersion(
   baseUrl: string = DEFAULT_NPM_REGISTRY
 ): Promise<string> {
-  const res = await fetch(`${baseUrl}/exodus-cli/latest`)
+  const res = await fetch(`${baseUrl}/actovia-cli/latest`)
   if (!res.ok) throw new Error(`npm registry lookup failed: ${res.status}`)
   const body = (await res.json()) as { version: string }
   return body.version

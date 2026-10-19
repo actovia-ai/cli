@@ -34,14 +34,14 @@ describe('isNewerVersion', () => {
 })
 
 describe('pickReleaseAssetName', () => {
-  test('maps darwin/arm64 to exodus-darwin-arm64', () => {
-    expect(pickReleaseAssetName('darwin', 'arm64')).toBe('exodus-darwin-arm64')
+  test('maps darwin/arm64 to actovia-darwin-arm64', () => {
+    expect(pickReleaseAssetName('darwin', 'arm64')).toBe('actovia-darwin-arm64')
   })
-  test('maps win32/x64 to exodus-windows-x64.exe', () => {
-    expect(pickReleaseAssetName('win32', 'x64')).toBe('exodus-windows-x64.exe')
+  test('maps win32/x64 to actovia-windows-x64.exe', () => {
+    expect(pickReleaseAssetName('win32', 'x64')).toBe('actovia-windows-x64.exe')
   })
-  test('maps linux/x64 to exodus-linux-x64', () => {
-    expect(pickReleaseAssetName('linux', 'x64')).toBe('exodus-linux-x64')
+  test('maps linux/x64 to actovia-linux-x64', () => {
+    expect(pickReleaseAssetName('linux', 'x64')).toBe('actovia-linux-x64')
   })
   test('returns null for an unsupported combination', () => {
     expect(pickReleaseAssetName('sunos' as NodeJS.Platform, 'x64')).toBeNull()
@@ -62,7 +62,7 @@ describe('getLatestNpmVersion', () => {
     const version = await getLatestNpmVersion('https://fake-registry.example.test')
     expect(version).toBe('9.9.9')
     expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
-      'https://fake-registry.example.test/exodus-cli/latest'
+      'https://fake-registry.example.test/actovia-cli/latest'
     )
   })
 })
@@ -79,14 +79,14 @@ describe('getLatestRelease', () => {
       new Response(
         JSON.stringify({
           tag_name: 'v9.9.9',
-          assets: [{ name: 'exodus-darwin-arm64', browser_download_url: 'https://x/y' }]
+          assets: [{ name: 'actovia-darwin-arm64', browser_download_url: 'https://x/y' }]
         }),
         { status: 200 }
       )
     )
     const release = await getLatestRelease('https://fake-api.example.test')
     expect(release.tag_name).toBe('v9.9.9')
-    expect(release.assets[0]?.name).toBe('exodus-darwin-arm64')
+    expect(release.assets[0]?.name).toBe('actovia-darwin-arm64')
   })
 })
 

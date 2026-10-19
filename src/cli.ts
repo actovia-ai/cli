@@ -16,8 +16,8 @@ export const REFRESH_TIMEOUT_MS = 10_000
 export function buildProgram(): Command {
   const program = new Command()
   program
-    .name('exodus')
-    .description('exodus-cli — launch Exodus, manage skills, and self-update')
+    .name('actovia')
+    .description('actovia-cli — launch Actovia, manage skills, and self-update')
     .version(version)
 
   registerOpenCommand(program)
@@ -29,7 +29,7 @@ export function buildProgram(): Command {
 
 export function wantsUpdateNotice(argv: string[]): boolean {
   if (argv.includes(UPDATE_CHECK_ARG)) return false
-  // `exodus update` reports the versions itself; a second line would just echo it.
+  // `actovia update` reports the versions itself; a second line would just echo it.
   return argv[2] !== 'update'
 }
 
