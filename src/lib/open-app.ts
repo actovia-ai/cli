@@ -33,23 +33,42 @@ async function tryWin32(): Promise<OpenAppResult> {
   return { status: 'not-found' }
 }
 
-async function tryLinux(): Promise<OpenAppResult> {
-  const check = Bun.spawn(['sh', '-c', 'command -v exodus'], {
+type FindCommand = (name: string) => Promise<boolean>
+type SpawnCommand = (name: string) => void
+
+const findOnPath: FindCommand = async (name) => {
+  const check = Bun.spawn(['sh', '-c', `command -v "$1"`, 'sh', name], {
     stdout: 'ignore',
     stderr: 'ignore'
   })
-  const exitCode = await check.exited
-  if (exitCode !== 0) return { status: 'not-found' }
-  Bun.spawn(['exodus'], { stdout: 'ignore', stderr: 'ignore' })
-  return { status: 'opened' }
+  return (await check.exited) === 0
+}
+
+const spawnDetached: SpawnCommand = (name) => {
+  Bun.spawn([name], { stdout: 'ignore', stderr: 'ignore' })
+}
+
+// The deb/rpm launcher is Actovia; an older install still has `exodus`.
+const LINUX_LAUNCHERS = ['actovia', 'Actovia', 'exodus']
+
+async function tryLinux(find: FindCommand, spawn: SpawnCommand): Promise<OpenAppResult> {
+  for (const name of LINUX_LAUNCHERS) {
+    if (await find(name)) {
+      spawn(name)
+      return { status: 'opened' }
+    }
+  }
+  return { status: 'not-found' }
 }
 
 export async function openExodusApp(
   platform: NodeJS.Platform = process.platform,
-  open: OpenByName = openByName
+  open: OpenByName = openByName,
+  find: FindCommand = findOnPath,
+  spawn: SpawnCommand = spawnDetached
 ): Promise<OpenAppResult> {
   if (platform === 'darwin') return tryDarwin(open)
   if (platform === 'win32') return tryWin32()
-  if (platform === 'linux') return tryLinux()
+  if (platform === 'linux') return tryLinux(find, spawn)
   return { status: 'not-found' }
 }

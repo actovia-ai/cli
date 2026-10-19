@@ -38,9 +38,41 @@ describe('openExodusApp', () => {
     expect(result.status).toBe('not-found')
   })
 
-  test('linux: reports not-found when `exodus` is not on PATH', async () => {
-    const result = await openExodusApp('linux')
+  for (const only of ['actovia', 'Actovia', 'exodus']) {
+    test(`linux: launches ${only} when it is the only one on PATH`, async () => {
+      const spawned: string[] = []
+      const result = await openExodusApp(
+        'linux',
+        undefined,
+        async (n) => n === only,
+        (n) => void spawned.push(n)
+      )
+      expect(result.status).toBe('opened')
+      expect(spawned).toEqual([only])
+    })
+  }
+
+  test('linux: prefers actovia when several launchers exist', async () => {
+    const spawned: string[] = []
+    await openExodusApp(
+      'linux',
+      undefined,
+      async () => true,
+      (n) => void spawned.push(n)
+    )
+    expect(spawned).toEqual(['actovia'])
+  })
+
+  test('linux: reports not-found when no launcher is on PATH', async () => {
+    const spawned: string[] = []
+    const result = await openExodusApp(
+      'linux',
+      undefined,
+      async () => false,
+      (n) => void spawned.push(n)
+    )
     expect(result.status).toBe('not-found')
+    expect(spawned).toEqual([])
   })
 
   test('unsupported platform reports not-found rather than throwing', async () => {
