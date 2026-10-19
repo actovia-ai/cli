@@ -17,7 +17,7 @@ export function buildProgram(): Command {
   const program = new Command()
   program
     .name('actovia')
-    .description('actovia-cli — launch Actovia, manage skills, and self-update')
+    .description('Actovia CLI — launch Actovia, manage skills, and self-update')
     .version(version)
 
   registerOpenCommand(program)

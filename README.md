@@ -1,4 +1,4 @@
-# actovia-cli
+# Actovia CLI
 
 A CLI for the Actovia ecosystem: launch the Actovia desktop app, check for CLI
 updates, and browse/install [Agent Skills](https://skills.sh) from the
@@ -10,9 +10,9 @@ terminal — either interactively or as scriptable JSON-emitting commands.
 Bun and its compiled bundle runs under the Bun runtime, not plain Node.js.
 
 ```bash
-npm install -g actovia-cli
+npm install -g @actovia-ai/cli
 # or, without installing:
-bunx actovia-cli --help
+bunx @actovia-ai/cli --help
 ```
 
 Prefer not to install Bun? Download a standalone binary for your platform
@@ -23,7 +23,7 @@ instead — no Bun or Node required.
 
 ```bash
 actovia open                       # launch the Actovia desktop app
-actovia update [--check]           # check for a newer actovia-cli version
+actovia update [--check]           # check for a newer Actovia CLI version
 actovia skills                     # interactive TUI: browse, view audits, install/uninstall
 actovia skills search <query> [--json]
 actovia skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills

@@ -8,7 +8,7 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
     const result = await checkForUpdate()
 
     if (!result.updateAvailable) {
-      console.log(`actovia-cli is up to date (${result.current}).`)
+      console.log(`Actovia CLI is up to date (${result.current}).`)
       return result
     }
 
@@ -17,7 +17,7 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
     if (opts.check) return result
 
     if (DIST_CHANNEL === 'npm') {
-      console.log('Run: npm install -g actovia-cli@latest')
+      console.log('Run: npm install -g @actovia-ai/cli@latest')
     } else {
       console.log(
         'Automatic binary self-update isn\'t wired up in this build yet — download the latest release from https://github.com/actovia-ai/cli/releases/latest'
@@ -34,7 +34,7 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
 export function registerUpdateCommand(program: Command): void {
   program
     .command('update')
-    .description('Check for a newer actovia-cli version')
+    .description('Check for a newer Actovia CLI version')
     .option('--check', 'only report whether an update is available, take no further action')
     .action(async (opts: { check?: boolean }) => {
       await runUpdate(opts)

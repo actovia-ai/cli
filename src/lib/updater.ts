@@ -33,7 +33,7 @@ export function pickReleaseAssetName(platform: NodeJS.Platform, arch: string): s
 export async function getLatestNpmVersion(
   baseUrl: string = DEFAULT_NPM_REGISTRY
 ): Promise<string> {
-  const res = await fetch(`${baseUrl}/actovia-cli/latest`)
+  const res = await fetch(`${baseUrl}/@actovia-ai%2Fcli/latest`)
   if (!res.ok) throw new Error(`npm registry lookup failed: ${res.status}`)
   const body = (await res.json()) as { version: string }
   return body.version

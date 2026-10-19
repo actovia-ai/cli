@@ -62,7 +62,7 @@ describe('getLatestNpmVersion', () => {
     const version = await getLatestNpmVersion('https://fake-registry.example.test')
     expect(version).toBe('9.9.9')
     expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
-      'https://fake-registry.example.test/actovia-cli/latest'
+      'https://fake-registry.example.test/@actovia-ai%2Fcli/latest'
     )
   })
 })
