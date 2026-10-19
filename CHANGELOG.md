@@ -1,25 +1,3 @@
-# [2.0.0](https://github.com/actovia-ai/cli/compare/v1.2.0...v2.0.0) (2026-10-19)
-
-
-* feat!: the CLI is actovia-cli with the command actovia; it launches Actovia (or an install still named Exodus) and updates from actovia-ai/cli ([9d5cd42](https://github.com/actovia-ai/cli/commit/9d5cd426945785747ced9797c1a1cb6528509594))
-
-
-### Bug Fixes
-
-* **open:** on Linux launch actovia, Actovia or (an older install) exodus, in that order ([c545ea3](https://github.com/actovia-ai/cli/commit/c545ea39a1b73bef79951c034b0c32fd916eae5c))
-
-
-### Features
-
-* publish as the scoped package @actovia-ai/cli (command stays actovia); updater looks up the scoped name ([3c26ba0](https://github.com/actovia-ai/cli/commit/3c26ba0564a293250afa1e8ecf99a60f4407e7d3))
-
-
-### BREAKING CHANGES
-
-* the npm package is now actovia-cli and the command is actovia (no exodus alias); release assets are actovia-<platform>-<arch>.
-
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-
 # [1.2.0](https://github.com/exodus-ai-org/cli/compare/v1.1.0...v1.2.0) (2026-09-19)
 
 
