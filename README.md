@@ -33,7 +33,7 @@ actovia --help
 ```
 
 Skills install into `~/.actovia/skills/<slug>/`, the same directory
-`universal-client` (the Actovia desktop app) reads — a skill installed via
+the Actovia desktop app reads — a skill installed via
 this CLI is immediately usable there too.
 
 ## Development
