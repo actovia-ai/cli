@@ -149,7 +149,17 @@ describe('actovia devices', () => {
     expect(await runDevicesList({ json: true }, { client, askPin: async () => '1', print: out.print })).toEqual([
       phone
     ])
-    expect(JSON.parse(out.lines[0]!)).toEqual([phone])
+    expect(JSON.parse(out.lines[0]!)).toEqual({ devices: [phone], revoked: [] })
+  })
+
+  test('lists the devices revoked here that have not been told yet', async () => {
+    const { client } = fakeClient([
+      { devices: [], pairing: null, lanRunning: true, revoked: [{ name: 'Old\u001b[2JiPad', revokedAt: '2026-10-20T00:00:00Z' }] }
+    ])
+    const out = quiet()
+    await runDevicesList({}, { client, askPin: async () => '1', print: out.print })
+    expect(out.lines.join('\n')).toMatch(/Revoked, not told yet/)
+    expect(out.lines.join('\n')).toMatch(/Old\?\[2JiPad/)
   })
 
   test('revoke checks the id exists first', async () => {

@@ -117,10 +117,12 @@ export async function runDevicesList(
   const { client, askPin, print } = defaults(deps)
   try {
     await client.authorize(await askPin())
-    const { devices } = await client.devices()
+    const { devices, revoked = [] } = await client.devices()
     if (opts.json) {
-      print(JSON.stringify(devices, null, 2))
-    } else if (devices.length === 0) {
+      print(JSON.stringify({ devices, revoked }, null, 2))
+      return devices
+    }
+    if (devices.length === 0) {
       print('No devices are paired. Pair one: actovia pair')
     } else {
       for (const d of devices) {
@@ -128,6 +130,11 @@ export async function runDevicesList(
           `${printable(d.name)}\n  id ${printable(d.id)} · paired ${when(d.createdAt)} · last seen ${when(d.lastSeenAt)}`
         )
       }
+    }
+    // A phone revoked here still believes it is paired until it next connects.
+    if (revoked.length > 0) {
+      print('\nRevoked, not told yet (each learns it the next time it connects):')
+      for (const r of revoked) print(`${printable(r.name ?? 'A device')}\n  revoked ${when(r.revokedAt)}`)
     }
     return devices
   } catch (err) {

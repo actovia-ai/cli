@@ -29,10 +29,18 @@ export interface PairingWindow {
   link: string
 }
 
+/** Revoked on the computer; the device has not come back to learn it yet. */
+export interface RevokedDevice {
+  name: string | null
+  revokedAt: string
+}
+
 export interface DevicesState {
   devices: PairedDevice[]
   pairing: PairingWindow | null
   lanRunning: boolean
+  /** Absent from an Actovia older than the list. */
+  revoked?: RevokedDevice[]
 }
 
 export class DesktopApiError extends Error {
