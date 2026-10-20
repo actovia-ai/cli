@@ -42,7 +42,8 @@ describe('DesktopClient', () => {
       [401, { error: { code: 'WRONG_PIN' } }, /Wrong PIN/],
       [429, { error: { code: 'PIN_LOCKED_OUT', retryAfterMs: 30_000 } }, /30 seconds/],
       [409, { error: { code: 'PIN_NOT_SET' } }, /Lock & Privacy/],
-      [423, { error: { code: 'CLI_PIN_DISABLED' } }, /lock screen/]
+      [423, { error: { code: 'CLI_PIN_DISABLED' } }, /lock screen/],
+      [404, { error: { code: 'NOT_FOUND' } }, /too old/]
     ]
     for (const [status, body, message] of cases) {
       const { impl } = fakeFetch(() => ({ status, body }))

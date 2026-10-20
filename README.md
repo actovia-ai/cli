@@ -23,7 +23,7 @@ instead — no Bun or Node required.
 
 ```bash
 actovia open                       # launch the Actovia desktop app
-actovia update [--check]           # check for a newer Actovia CLI version
+actovia update [--check]           # update the CLI to the newest version (--check: only report)
 actovia pair [--invert]            # pair a phone with this machine's Actovia (QR code in the terminal)
 actovia devices [--json]           # list the paired phones
 actovia devices revoke <id>        # unpair one

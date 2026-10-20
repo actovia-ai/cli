@@ -38,6 +38,9 @@ for name in "${!TARGETS[@]}"; do
   fi
 done
 
+# `actovia update` checks a downloaded binary against this before swapping it in.
+(cd release-binaries && shasum -a 256 actovia-* > SHA256SUMS)
+
 echo "Built:"
 ls -la release-binaries
 

@@ -41,4 +41,23 @@ describe('runUpdate', () => {
     // process exits non-zero even though every test passed.
     process.exitCode = 0
   })
+
+  test('installs the newer version unless --check', async () => {
+    const spy = spyOn(updater, 'checkForUpdate').mockResolvedValue({
+      updateAvailable: true,
+      current: '0.1.0',
+      latest: '0.2.0'
+    })
+    const installed: string[] = []
+    await runUpdate({}, { installPackage: async v => (installed.push(v), true) })
+    expect(installed).toEqual(['0.2.0'])
+
+    await runUpdate({ check: true }, { installPackage: async v => (installed.push(v), true) })
+    expect(installed).toEqual(['0.2.0'])
+
+    await runUpdate({}, { installPackage: async () => false })
+    expect(process.exitCode).toBe(1)
+    process.exitCode = 0
+    spy.mockRestore()
+  })
 })

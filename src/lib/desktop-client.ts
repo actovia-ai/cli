@@ -63,6 +63,9 @@ function messageFor(status: number, code: string, retryAfterMs: number): string 
     case 'APP_LOCKED':
       return 'Actovia is locked. Run the command again and enter the PIN.'
     default:
+      // A route this Actovia does not have: it is older than the CLI.
+      if (status === 404)
+        return 'This Actovia is too old for this command. Update it (Settings → About, or download the latest from https://github.com/actovia-ai/actovia/releases/latest), then try again.'
       return `Actovia answered ${status} ${code}.`
   }
 }

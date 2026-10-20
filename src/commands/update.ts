@@ -1,9 +1,22 @@
 import type { Command } from 'commander'
 
+import { updateBinary, updatePackage } from '../lib/self-update'
 import { checkForUpdate, DIST_CHANNEL, type UpdateCheckResult } from '../lib/updater'
 import { reportError } from './report-error'
 
-export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateCheckResult | null> {
+export interface UpdateDeps {
+  installPackage?: (version: string) => Promise<boolean>
+  installBinary?: () => Promise<boolean>
+}
+
+/**
+ * Checks, and — unless `--check` — installs the newer version the way this
+ * one was installed (`self-update.ts`).
+ */
+export async function runUpdate(
+  opts: { check?: boolean } = {},
+  deps: UpdateDeps = {}
+): Promise<UpdateCheckResult | null> {
   try {
     const result = await checkForUpdate()
 
@@ -16,14 +29,15 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
 
     if (opts.check) return result
 
-    if (DIST_CHANNEL === 'npm') {
-      console.log('Run: npm install -g @actovia-ai/cli@latest')
+    const installed =
+      DIST_CHANNEL === 'npm'
+        ? await (deps.installPackage ?? (v => updatePackage(v)))(result.latest)
+        : await (deps.installBinary ?? (() => updateBinary()))()
+    if (installed) {
+      console.log(`Updated to ${result.latest}.`)
     } else {
-      console.log(
-        'Automatic binary self-update isn\'t wired up in this build yet — download the latest release from https://github.com/actovia-ai/cli/releases/latest'
-      )
+      process.exitCode = 1
     }
-
     return result
   } catch (err) {
     reportError(err)
@@ -34,8 +48,8 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
 export function registerUpdateCommand(program: Command): void {
   program
     .command('update')
-    .description('Check for a newer Actovia CLI version')
-    .option('--check', 'only report whether an update is available, take no further action')
+    .description('Update the Actovia CLI to the newest version')
+    .option('--check', 'only report whether an update is available, install nothing')
     .action(async (opts: { check?: boolean }) => {
       await runUpdate(opts)
     })
