@@ -3,7 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import type { DesktopClient, DevicesState, PairedDevice } from '../lib/desktop-client'
 import { DesktopApiError } from '../lib/desktop-client'
 import { PinCancelled } from '../lib/pin-prompt'
-import { qrFor, runDevicesList, runDevicesRevoke, runPair } from './devices'
+import { printable, qrFor, runDevicesList, runDevicesRevoke, runPair } from './devices'
 
 const phone: PairedDevice = { id: 'd1', name: 'iPhone', createdAt: '2026-10-21T00:00:00Z', lastSeenAt: null }
 
@@ -70,6 +70,27 @@ describe('actovia pair', () => {
     )
     expect(outcome).toEqual({ status: 'expired' })
     expect(process.exitCode).toBe(1)
+  })
+
+  test('a code that runs out is closed on the computer too', async () => {
+    const open = { devices: [], pairing: { expiresAt: 120_000, link: 'x' }, lanRunning: true }
+    const { client, calls } = fakeClient([open])
+    let t = 0
+    await runPair({}, { client, askPin: async () => '1', print: () => {}, sleep: async ms => void (t += ms), now: () => t })
+    expect(calls.at(-1)).toBe('closePairing')
+  })
+
+  test("a device's name cannot drive the terminal", async () => {
+    const evil = { ...phone, name: 'iPhone\u001b[2J\u001b]0;pwned\u0007\r' }
+    const { client } = fakeClient([
+      { devices: [], pairing: { expiresAt: 120_000, link: 'x' }, lanRunning: true },
+      { devices: [evil], pairing: null, lanRunning: true }
+    ])
+    const out = quiet()
+    let t = 0
+    await runPair({}, { client, askPin: async () => '1', print: out.print, sleep: async ms => void (t += ms), now: () => t })
+    expect(out.lines.at(-1)).toBe('Paired iPhone?[2J?]0;pwned??.')
+    expect(printable('a\u202eb')).toBe('a?b')
   })
 
   test('a wrong PIN opens no window and says so', async () => {

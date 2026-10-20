@@ -33,6 +33,15 @@ const defaults = (deps: DeviceDeps) => ({
   now: deps.now ?? Date.now
 })
 
+/**
+ * A device's name as the terminal is to show it: the phone chose it, so any
+ * control character — an escape sequence could rewrite the screen, a
+ * carriage return could hide a line — is shown as `?`.
+ */
+export function printable(text: string): string {
+  return text.replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu, '?')
+}
+
 /** How often `actovia pair` asks whether the phone has paired. */
 export const PAIR_POLL_MS = 1500
 
@@ -52,6 +61,14 @@ export async function runPair(
 ): Promise<PairOutcome> {
   const { client, askPin, print, sleep, now } = defaults(deps)
   let window: PairingWindow | null = null
+  // Whatever ends the wait short of a pairing — Ctrl-C, an error, the code
+  // running out — closes the window on the computer too: none is left open.
+  const close = () => (window ? client.closePairing().catch(() => {}) : Promise.resolve())
+  const onInterrupt = () => {
+    void close().finally(() => process.exit(130))
+  }
+  const listens = deps.client === undefined
+  if (listens) process.once('SIGINT', onInterrupt)
   try {
     await client.authorize(await askPin())
     const before = new Set((await client.devices()).devices.map(d => d.id))
@@ -68,20 +85,23 @@ export async function runPair(
       const state: DevicesState = await client.devices()
       const device = state.devices.find(d => !before.has(d.id))
       if (device) {
-        print(`Paired ${device.name}.`)
+        print(`Paired ${printable(device.name)}.`)
         return { status: 'paired', device }
       }
       // Closed on the computer (the Devices page) or used up without a new device.
       if (!state.pairing) break
     }
+    await close()
     print('The pairing code expired. Run `actovia pair` for a new one.')
     process.exitCode = 1
     return { status: 'expired' }
   } catch (err) {
-    if (window) await client.closePairing().catch(() => {})
+    await close()
     if (!(err instanceof PinCancelled)) reportError(err)
     else process.exitCode = 1
     return { status: 'failed' }
+  } finally {
+    if (listens) process.off('SIGINT', onInterrupt)
   }
 }
 
@@ -104,7 +124,9 @@ export async function runDevicesList(
       print('No devices are paired. Pair one: actovia pair')
     } else {
       for (const d of devices) {
-        print(`${d.name}\n  id ${d.id} · paired ${when(d.createdAt)} · last seen ${when(d.lastSeenAt)}`)
+        print(
+          `${printable(d.name)}\n  id ${printable(d.id)} · paired ${when(d.createdAt)} · last seen ${when(d.lastSeenAt)}`
+        )
       }
     }
     return devices
@@ -126,7 +148,7 @@ export async function runDevicesRevoke(id: string, deps: DeviceDeps = {}): Promi
       return false
     }
     await client.revoke(id)
-    print(`Revoked ${device.name}. It can no longer reach this computer.`)
+    print(`Revoked ${printable(device.name)}. It can no longer reach this computer.`)
     return true
   } catch (err) {
     if (!(err instanceof PinCancelled)) reportError(err)
