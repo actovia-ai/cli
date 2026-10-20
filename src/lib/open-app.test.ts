@@ -1,11 +1,11 @@
 import { describe, expect, test } from 'bun:test'
 
-import { openExodusApp } from './open-app'
+import { openActoviaApp } from './open-app'
 
-describe('openExodusApp', () => {
-  test('darwin: opens Actovia first', async () => {
+describe('openActoviaApp', () => {
+  test('darwin: opens Actovia', async () => {
     const tried: string[] = []
-    const result = await openExodusApp('darwin', async (name) => {
+    const result = await openActoviaApp('darwin', async (name) => {
       tried.push(name)
       return true
     })
@@ -13,35 +13,25 @@ describe('openExodusApp', () => {
     expect(tried).toEqual(['Actovia'])
   })
 
-  test('darwin: falls back to Exodus when Actovia is missing', async () => {
+  test('darwin: reports not-found when the app is not installed', async () => {
     const tried: string[] = []
-    const result = await openExodusApp('darwin', async (name) => {
-      tried.push(name)
-      return name === 'Exodus'
-    })
-    expect(result.status).toBe('opened')
-    expect(tried).toEqual(['Actovia', 'Exodus'])
-  })
-
-  test('darwin: reports not-found when neither app is installed', async () => {
-    const tried: string[] = []
-    const result = await openExodusApp('darwin', async (name) => {
+    const result = await openActoviaApp('darwin', async (name) => {
       tried.push(name)
       return false
     })
     expect(result.status).toBe('not-found')
-    expect(tried).toEqual(['Actovia', 'Exodus'])
+    expect(tried).toEqual(['Actovia'])
   })
 
   test('win32: reports not-found when no known install path exists', async () => {
-    const result = await openExodusApp('win32')
+    const result = await openActoviaApp('win32')
     expect(result.status).toBe('not-found')
   })
 
-  for (const only of ['actovia', 'Actovia', 'exodus']) {
+  for (const only of ['actovia', 'Actovia']) {
     test(`linux: launches ${only} when it is the only one on PATH`, async () => {
       const spawned: string[] = []
-      const result = await openExodusApp(
+      const result = await openActoviaApp(
         'linux',
         undefined,
         async (n) => n === only,
@@ -54,7 +44,7 @@ describe('openExodusApp', () => {
 
   test('linux: prefers actovia when several launchers exist', async () => {
     const spawned: string[] = []
-    await openExodusApp(
+    await openActoviaApp(
       'linux',
       undefined,
       async () => true,
@@ -65,7 +55,7 @@ describe('openExodusApp', () => {
 
   test('linux: reports not-found when no launcher is on PATH', async () => {
     const spawned: string[] = []
-    const result = await openExodusApp(
+    const result = await openActoviaApp(
       'linux',
       undefined,
       async () => false,
@@ -76,7 +66,7 @@ describe('openExodusApp', () => {
   })
 
   test('unsupported platform reports not-found rather than throwing', async () => {
-    const result = await openExodusApp('sunos' as NodeJS.Platform)
+    const result = await openActoviaApp('sunos' as NodeJS.Platform)
     expect(result.status).toBe('not-found')
   })
 })

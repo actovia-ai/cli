@@ -9,8 +9,7 @@ const openByName: OpenByName = async (appName) => {
   return (await proc.exited) === 0
 }
 
-// An install updated from before the rebrand may still sit at Exodus.app.
-const DARWIN_APP_NAMES = ['Actovia', 'Exodus']
+const DARWIN_APP_NAMES = ['Actovia']
 
 async function tryDarwin(open: OpenByName): Promise<OpenAppResult> {
   for (const name of DARWIN_APP_NAMES) {
@@ -21,8 +20,8 @@ async function tryDarwin(open: OpenByName): Promise<OpenAppResult> {
 
 async function tryWin32(): Promise<OpenAppResult> {
   const candidates = [
-    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Exodus', 'Exodus.exe'),
-    join(process.env.ProgramFiles ?? '', 'Exodus', 'Exodus.exe')
+    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Actovia', 'Actovia.exe'),
+    join(process.env.ProgramFiles ?? '', 'Actovia', 'Actovia.exe')
   ]
   for (const exePath of candidates) {
     if (await Bun.file(exePath).exists()) {
@@ -48,8 +47,8 @@ const spawnDetached: SpawnCommand = (name) => {
   Bun.spawn([name], { stdout: 'ignore', stderr: 'ignore' })
 }
 
-// The deb/rpm launcher is Actovia; an older install still has `exodus`.
-const LINUX_LAUNCHERS = ['actovia', 'Actovia', 'exodus']
+// The deb/rpm launcher is `actovia` (or `Actovia`).
+const LINUX_LAUNCHERS = ['actovia', 'Actovia']
 
 async function tryLinux(find: FindCommand, spawn: SpawnCommand): Promise<OpenAppResult> {
   for (const name of LINUX_LAUNCHERS) {
@@ -61,7 +60,7 @@ async function tryLinux(find: FindCommand, spawn: SpawnCommand): Promise<OpenApp
   return { status: 'not-found' }
 }
 
-export async function openExodusApp(
+export async function openActoviaApp(
   platform: NodeJS.Platform = process.platform,
   open: OpenByName = openByName,
   find: FindCommand = findOnPath,

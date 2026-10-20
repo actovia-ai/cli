@@ -1,7 +1,7 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
-import { getExodusHome } from './paths'
+import { getActoviaHome } from './paths'
 import { getCurrentVersion, getLatestVersion, isNewerVersion } from './updater'
 
 const CACHE_FILE = 'update-check.json'
@@ -17,16 +17,16 @@ export interface UpdateCache {
   latest: string
 }
 
-export function getUpdateCachePath(exodusHome: string = getExodusHome()): string {
-  return join(exodusHome, CACHE_FILE)
+export function getUpdateCachePath(actoviaHome: string = getActoviaHome()): string {
+  return join(actoviaHome, CACHE_FILE)
 }
 
 export async function readUpdateCache(
-  exodusHome: string = getExodusHome()
+  actoviaHome: string = getActoviaHome()
 ): Promise<UpdateCache | null> {
   try {
     const parsed = JSON.parse(
-      await readFile(getUpdateCachePath(exodusHome), 'utf-8')
+      await readFile(getUpdateCachePath(actoviaHome), 'utf-8')
     ) as Partial<UpdateCache>
     if (typeof parsed?.checkedAt !== 'number' || typeof parsed?.latest !== 'string') return null
     return { checkedAt: parsed.checkedAt, latest: parsed.latest }
@@ -38,9 +38,9 @@ export async function readUpdateCache(
 
 export async function writeUpdateCache(
   cache: UpdateCache,
-  exodusHome: string = getExodusHome()
+  actoviaHome: string = getActoviaHome()
 ): Promise<void> {
-  const path = getUpdateCachePath(exodusHome)
+  const path = getUpdateCachePath(actoviaHome)
   await mkdir(dirname(path), { recursive: true })
   await writeFile(path, JSON.stringify(cache))
 }
@@ -65,10 +65,10 @@ export function formatUpdateBadge(current: string, cache: UpdateCache | null): s
 }
 
 export async function getUpdateBadge(
-  exodusHome: string = getExodusHome(),
+  actoviaHome: string = getActoviaHome(),
   current: string = getCurrentVersion()
 ): Promise<string | null> {
-  return formatUpdateBadge(current, await readUpdateCache(exodusHome))
+  return formatUpdateBadge(current, await readUpdateCache(actoviaHome))
 }
 
 export function buildRefreshCommand(
@@ -83,13 +83,13 @@ export function buildRefreshCommand(
 }
 
 export async function refreshUpdateCache(
-  exodusHome: string = getExodusHome(),
+  actoviaHome: string = getActoviaHome(),
   fetchLatest: () => Promise<string> = getLatestVersion,
   now: () => number = Date.now
 ): Promise<void> {
   try {
     const latest = await fetchLatest()
-    await writeUpdateCache({ checkedAt: now(), latest }, exodusHome)
+    await writeUpdateCache({ checkedAt: now(), latest }, actoviaHome)
   } catch {
     // A launch-time check is a convenience, never a reason to fail the command
     // or to discard the previous answer. Stay quiet and try again next launch.
@@ -117,20 +117,20 @@ export function spawnBackgroundRefresh(): void {
  */
 export async function prepareUpdateNotice(
   opts: {
-    exodusHome?: string
+    actoviaHome?: string
     current?: string
     now?: number
     spawnRefresh?: () => void
   } = {}
 ): Promise<string | null> {
   const {
-    exodusHome = getExodusHome(),
+    actoviaHome = getActoviaHome(),
     current = getCurrentVersion(),
     now = Date.now(),
     spawnRefresh = spawnBackgroundRefresh
   } = opts
 
-  const cache = await readUpdateCache(exodusHome)
+  const cache = await readUpdateCache(actoviaHome)
 
   if (isCacheStale(cache, now)) {
     try {

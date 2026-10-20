@@ -3,7 +3,7 @@ import type { SkillDetail } from './skills-store'
 export const DEFAULT_BFF_BASE_URL = 'https://skills-md.yancey.app'
 
 function resolveBaseUrl(explicit?: string): string {
-  return explicit ?? process.env.EXODUS_SKILLS_BFF_URL ?? DEFAULT_BFF_BASE_URL
+  return explicit ?? process.env.ACTOVIA_SKILLS_BFF_URL ?? DEFAULT_BFF_BASE_URL
 }
 
 export interface SkillListItem {

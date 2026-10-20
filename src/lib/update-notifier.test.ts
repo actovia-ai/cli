@@ -18,39 +18,39 @@ import {
   writeUpdateCache
 } from './update-notifier'
 
-let exodusHome: string
+let actoviaHome: string
 
 beforeEach(async () => {
-  exodusHome = await mkdtemp(join(tmpdir(), 'exodus-cli-update-notifier-'))
+  actoviaHome = await mkdtemp(join(tmpdir(), 'actovia-cli-update-notifier-'))
 })
 
 afterEach(async () => {
-  await rm(exodusHome, { recursive: true, force: true })
+  await rm(actoviaHome, { recursive: true, force: true })
 })
 
 describe('getUpdateCachePath', () => {
-  test('lives at <exodusHome>/update-check.json', () => {
+  test('lives at <actoviaHome>/update-check.json', () => {
     expect(getUpdateCachePath('/fake-home')).toBe(join('/fake-home', 'update-check.json'))
   })
 })
 
 describe('readUpdateCache', () => {
   test('returns null when no check has ever run', async () => {
-    expect(await readUpdateCache(exodusHome)).toBeNull()
+    expect(await readUpdateCache(actoviaHome)).toBeNull()
   })
 
   test('returns null rather than throwing when the cache file is corrupt', async () => {
-    await writeFile(getUpdateCachePath(exodusHome), '{ not json')
-    expect(await readUpdateCache(exodusHome)).toBeNull()
+    await writeFile(getUpdateCachePath(actoviaHome), '{ not json')
+    expect(await readUpdateCache(actoviaHome)).toBeNull()
   })
 
   test('reads back what writeUpdateCache stored', async () => {
-    await writeUpdateCache({ checkedAt: 1000, latest: '9.9.9' }, exodusHome)
-    expect(await readUpdateCache(exodusHome)).toEqual({ checkedAt: 1000, latest: '9.9.9' })
+    await writeUpdateCache({ checkedAt: 1000, latest: '9.9.9' }, actoviaHome)
+    expect(await readUpdateCache(actoviaHome)).toEqual({ checkedAt: 1000, latest: '9.9.9' })
   })
 
-  test('creates the exodus home directory if it is missing', async () => {
-    const nested = join(exodusHome, 'does', 'not', 'exist')
+  test('creates the actovia home directory if it is missing', async () => {
+    const nested = join(actoviaHome, 'does', 'not', 'exist')
     await writeUpdateCache({ checkedAt: 1, latest: '1.0.0' }, nested)
     expect(await readUpdateCache(nested)).toEqual({ checkedAt: 1, latest: '1.0.0' })
   })
@@ -112,15 +112,15 @@ describe('buildRefreshCommand', () => {
   })
 
   test('re-invokes the executable directly for a compiled binary', () => {
-    expect(buildRefreshCommand(['/usr/local/bin/exodus', '/usr/local/bin/exodus'], '/usr/local/bin/exodus')).toEqual([
-      '/usr/local/bin/exodus',
+    expect(buildRefreshCommand(['/usr/local/bin/actovia', '/usr/local/bin/actovia'], '/usr/local/bin/actovia')).toEqual([
+      '/usr/local/bin/actovia',
       '__update-check'
     ])
   })
 
   test('falls back to the executable alone when there is no entry argument', () => {
-    expect(buildRefreshCommand(['/usr/local/bin/exodus'], '/usr/local/bin/exodus')).toEqual([
-      '/usr/local/bin/exodus',
+    expect(buildRefreshCommand(['/usr/local/bin/actovia'], '/usr/local/bin/actovia')).toEqual([
+      '/usr/local/bin/actovia',
       '__update-check'
     ])
   })
@@ -128,20 +128,20 @@ describe('buildRefreshCommand', () => {
 
 describe('refreshUpdateCache', () => {
   test('stores the fetched version alongside the time it was fetched', async () => {
-    await refreshUpdateCache(exodusHome, async () => '3.1.4', () => 555)
-    expect(await readUpdateCache(exodusHome)).toEqual({ checkedAt: 555, latest: '3.1.4' })
+    await refreshUpdateCache(actoviaHome, async () => '3.1.4', () => 555)
+    expect(await readUpdateCache(actoviaHome)).toEqual({ checkedAt: 555, latest: '3.1.4' })
   })
 
   test('leaves a previous result intact when the lookup fails', async () => {
-    await writeUpdateCache({ checkedAt: 1, latest: '2.0.0' }, exodusHome)
-    await refreshUpdateCache(exodusHome, async () => {
+    await writeUpdateCache({ checkedAt: 1, latest: '2.0.0' }, actoviaHome)
+    await refreshUpdateCache(actoviaHome, async () => {
       throw new Error('unknown certificate verification error')
     })
-    expect(await readUpdateCache(exodusHome)).toEqual({ checkedAt: 1, latest: '2.0.0' })
+    expect(await readUpdateCache(actoviaHome)).toEqual({ checkedAt: 1, latest: '2.0.0' })
   })
 
   test('swallows lookup failures instead of rejecting', async () => {
-    const failing = refreshUpdateCache(exodusHome, async () => {
+    const failing = refreshUpdateCache(actoviaHome, async () => {
       throw new Error('offline')
     })
     expect(await failing).toBeUndefined()
@@ -151,15 +151,15 @@ describe('refreshUpdateCache', () => {
 describe('prepareUpdateNotice', () => {
   test('kicks off a background refresh when the cache is stale', async () => {
     let spawned = 0
-    await prepareUpdateNotice({ exodusHome, current: '1.0.0', spawnRefresh: () => { spawned++ } })
+    await prepareUpdateNotice({ actoviaHome, current: '1.0.0', spawnRefresh: () => { spawned++ } })
     expect(spawned).toBe(1)
   })
 
   test('does not hit the network again while the cache is fresh', async () => {
     let spawned = 0
-    await writeUpdateCache({ checkedAt: 900, latest: '1.0.0' }, exodusHome)
+    await writeUpdateCache({ checkedAt: 900, latest: '1.0.0' }, actoviaHome)
     await prepareUpdateNotice({
-      exodusHome,
+      actoviaHome,
       current: '1.0.0',
       now: 1000,
       spawnRefresh: () => { spawned++ }
@@ -168,9 +168,9 @@ describe('prepareUpdateNotice', () => {
   })
 
   test('returns the notice for a newer cached version', async () => {
-    await writeUpdateCache({ checkedAt: 900, latest: '1.5.0' }, exodusHome)
+    await writeUpdateCache({ checkedAt: 900, latest: '1.5.0' }, actoviaHome)
     const notice = await prepareUpdateNotice({
-      exodusHome,
+      actoviaHome,
       current: '1.0.0',
       now: 1000,
       spawnRefresh: () => {}
@@ -181,7 +181,7 @@ describe('prepareUpdateNotice', () => {
   test('stays silent on a cold cache even though it refreshes for next time', async () => {
     let spawned = 0
     const notice = await prepareUpdateNotice({
-      exodusHome,
+      actoviaHome,
       current: '1.0.0',
       spawnRefresh: () => { spawned++ }
     })
@@ -191,7 +191,7 @@ describe('prepareUpdateNotice', () => {
 
   test('never lets a broken spawn take down the command', async () => {
     const notice = await prepareUpdateNotice({
-      exodusHome,
+      actoviaHome,
       current: '1.0.0',
       spawnRefresh: () => {
         throw new Error('spawn EPERM')
@@ -224,11 +224,11 @@ describe('formatUpdateBadge', () => {
 
 describe('getUpdateBadge', () => {
   test('formats the badge from whatever the last check cached', async () => {
-    await writeUpdateCache({ checkedAt: 0, latest: '4.0.0' }, exodusHome)
-    expect(await getUpdateBadge(exodusHome, '1.0.0')).toBe('Update available: 4.0.0')
+    await writeUpdateCache({ checkedAt: 0, latest: '4.0.0' }, actoviaHome)
+    expect(await getUpdateBadge(actoviaHome, '1.0.0')).toBe('Update available: 4.0.0')
   })
 
   test('is silent before any check has run', async () => {
-    expect(await getUpdateBadge(exodusHome, '1.0.0')).toBeNull()
+    expect(await getUpdateBadge(actoviaHome, '1.0.0')).toBeNull()
   })
 })

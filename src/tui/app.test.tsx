@@ -33,7 +33,7 @@ let skillsDir: string
 let fetchSpy: ReturnType<typeof jest.spyOn>
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-app-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-app-'))
   fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
     new Response(
       JSON.stringify({ data: [], pagination: { page: 0, perPage: 100, total: 0, hasMore: false } }),

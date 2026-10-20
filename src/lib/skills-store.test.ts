@@ -16,7 +16,7 @@ import {
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-skills-store-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-skills-store-'))
 })
 
 afterEach(async () => {

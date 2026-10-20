@@ -15,7 +15,7 @@ import {
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-skills-cmd-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-skills-cmd-'))
 })
 
 afterEach(async () => {
@@ -52,7 +52,7 @@ describe('runSkillsSearch', () => {
 describe('error handling', () => {
   test('runSkillsSearch resolves to [] and prints {error, message} JSON on failure', async () => {
     const spy = spyOn(client, 'searchSkills').mockRejectedValue(new Error('network down'))
-    const logSpy = spyOn(console, 'log').mockImplementation(() => {})
+    const logSpy = spyOn(console, 'log').mockImplementation(() => { })
 
     const results = await runSkillsSearch('react native', { json: true })
 
@@ -72,7 +72,7 @@ describe('error handling', () => {
 
   test('runSkillsInstall resolves to null and prints a plain error without --json', async () => {
     const spy = spyOn(client, 'getSkillDetail').mockRejectedValue(new Error('not found'))
-    const errorSpy = spyOn(console, 'error').mockImplementation(() => {})
+    const errorSpy = spyOn(console, 'error').mockImplementation(() => { })
 
     const installed = await runSkillsInstall('bad/skill/id', { skillsDir })
 

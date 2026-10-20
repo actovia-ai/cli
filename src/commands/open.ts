@@ -1,9 +1,9 @@
 import type { Command } from 'commander'
 
-import { openExodusApp, type OpenAppResult } from '../lib/open-app'
+import { openActoviaApp, type OpenAppResult } from '../lib/open-app'
 
 export async function runOpen(): Promise<OpenAppResult> {
-  const result = await openExodusApp()
+  const result = await openActoviaApp()
   if (result.status === 'opened') {
     console.log('Opened Actovia.')
   } else {

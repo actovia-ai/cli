@@ -1,21 +1,21 @@
-# exodus-cli Implementation Plan
+# @actovia-ai/cli Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build `exodus-cli` — a Bun CLI providing `exodus open`, `exodus update`, `exodus skills` (interactive TUI + scripted subcommands), and `exodus help` — published to both npm and GitHub Releases binaries.
+**Goal:** Build `@actovia-ai/cli` — a Bun CLI providing `actovia open`, `actovia update`, `actovia skills` (interactive TUI + scripted subcommands), and `actovia help` — published to both npm and GitHub Releases binaries.
 
-**Architecture:** A UI-agnostic core lib (`src/lib/*`) talks to the skills.sh-bff relay and to `~/.exodus/skills/` on disk. A Commander.js shell (`src/cli.ts` + `src/commands/*`) exposes every command non-interactively with `--json` output. An Ink TUI (`src/tui/*`), entered only by `exodus skills` with no subcommand, wraps the same core lib for the interactive Discover/Installed browser. Both layers call the exact same core functions — no logic is duplicated between the scripted and interactive paths.
+**Architecture:** A UI-agnostic core lib (`src/lib/*`) talks to the skills.sh-bff relay and to `~/.actovia/skills/` on disk. A Commander.js shell (`src/cli.ts` + `src/commands/*`) exposes every command non-interactively with `--json` output. An Ink TUI (`src/tui/*`), entered only by `actovia skills` with no subcommand, wraps the same core lib for the interactive Discover/Installed browser. Both layers call the exact same core functions — no logic is duplicated between the scripted and interactive paths.
 
 **Tech Stack:** Bun 1.3+, TypeScript, Commander 15, Ink 7 + React 19, ink-text-input, ink-spinner, ink-testing-library (dev), bun:test.
 
-**Spec:** `docs/superpowers/specs/2026-09-18-exodus-cli-design.md`
+**Spec:** `docs/superpowers/specs/2026-09-18-actovia-cli-design.md`
 
 ## Global Constraints
 
-- Bin command is `exodus` (package name stays `exodus-cli`).
-- Skills install to `~/.exodus/skills/<slug>/` with a `.lock.json` lockfile in the exact shape `universal-client`'s `skills-manager.ts` already uses (`{ skills: Record<slug, { displayName, version, isActive, installPath, installedAt, source? }>> }`), so a skill installed via this CLI is immediately usable by the desktop app.
+- Bin command is `actovia` (package name stays `@actovia-ai/cli`).
+- Skills install to `~/.actovia/skills/<slug>/` with a `.lock.json` lockfile in the exact shape `the desktop app`'s `skills-manager.ts` already uses (`{ skills: Record<slug, { displayName, version, isActive, installPath, installedAt, source? }>> }`), so a skill installed via this CLI is immediately usable by the desktop app.
 - skills.sh has no per-skill semver — the lockfile's `version` field stores the skill's content `hash`, truncated to 12 characters.
-- All skills.sh calls go through the already-deployed BFF at `https://skills-md.yancey.app` (custom domain for the `skills.sh-bff` Vercel project; no auth header needed — the BFF injects the Vercel OIDC token server-side). Default base URL is overridable via the `EXODUS_SKILLS_BFF_URL` env var.
+- All skills.sh calls go through the already-deployed BFF at `https://skills-md.yancey.app` (custom domain for the `skills.sh-bff` Vercel project; no auth header needed — the BFF injects the Vercel OIDC token server-side). Default base URL is overridable via the `ACTOVIA_SKILLS_BFF_URL` env var.
 - No Commander file or Ink component may call `fetch`/`fs` directly — only `src/lib/*` does. Command files and TUI screens only call into `src/lib/*`.
 - ClawHub is not supported. No generic multi-registry abstraction is built — `skills-sh-client.ts` is the only registry client, isolated behind its own module boundary for a future second source.
 - npm channel assumes `bun` is on the end user's `PATH` (matches this org's Bun-first convention — see `CLAUDE.md`). Users without Bun are pointed at the compiled-binary GitHub Release instead.
@@ -38,7 +38,7 @@
 
 Run:
 ```bash
-cd ~/Code/exodus/cli
+cd ~/Code/actovia/cli
 bun add commander@15.0.0 ink@7.1.1 react@19.3.0 ink-text-input@6.0.0 ink-spinner@5.0.0
 bun add -d typescript@5.9.3 @types/react@19.3.0 ink-testing-library@4.0.0
 ```
@@ -51,12 +51,12 @@ Replace the whole file with:
 
 ```json
 {
-  "name": "exodus-cli",
+  "name": "@actovia-ai/cli",
   "version": "0.1.0",
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "exodus": "./index.ts"
+    "actovia": "./index.ts"
   },
   "scripts": {
     "dev": "bun run index.ts",
@@ -144,7 +144,7 @@ git commit -m "chore: add cli dependencies and scripts"
 
 **Interfaces:**
 - Consumes: nothing
-- Produces: `getExodusHome(): string`, `getSkillsDir(exodusHome?: string): string`
+- Produces: `getActoviaHome(): string`, `getSkillsDir(actoviaHome?: string): string`
 
 - [ ] **Step 1: Write the failing test**
 
@@ -155,15 +155,15 @@ import { describe, expect, test } from 'bun:test'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { getExodusHome, getSkillsDir } from './paths'
+import { getActoviaHome, getSkillsDir } from './paths'
 
 describe('paths', () => {
-  test('getExodusHome resolves to ~/.exodus', () => {
-    expect(getExodusHome()).toBe(join(homedir(), '.exodus'))
+  test('getActoviaHome resolves to ~/.actovia', () => {
+    expect(getActoviaHome()).toBe(join(homedir(), '.actovia'))
   })
 
-  test('getSkillsDir defaults to <exodusHome>/skills', () => {
-    expect(getSkillsDir()).toBe(join(getExodusHome(), 'skills'))
+  test('getSkillsDir defaults to <actoviaHome>/skills', () => {
+    expect(getSkillsDir()).toBe(join(getActoviaHome(), 'skills'))
   })
 
   test('getSkillsDir accepts an override home for testing', () => {
@@ -185,12 +185,12 @@ Create `src/lib/paths.ts`:
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-export function getExodusHome(): string {
-  return join(homedir(), '.exodus')
+export function getActoviaHome(): string {
+  return join(homedir(), '.actovia')
 }
 
-export function getSkillsDir(exodusHome: string = getExodusHome()): string {
-  return join(exodusHome, 'skills')
+export function getSkillsDir(actoviaHome: string = getActoviaHome()): string {
+  return join(actoviaHome, 'skills')
 }
 ```
 
@@ -207,7 +207,7 @@ Expected: `3 pass`, 0 fail.
 ```bash
 git add src/lib/paths.ts src/lib/paths.test.ts
 git rm --cached src/lib/.gitkeep 2>/dev/null || true
-git commit -m "feat: add exodus home/skills dir path helpers"
+git commit -m "feat: add actovia home/skills dir path helpers"
 ```
 
 ---
@@ -256,7 +256,7 @@ import {
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-skills-store-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-skills-store-'))
 })
 
 afterEach(async () => {
@@ -505,7 +505,7 @@ git commit -m "feat: add local skills store (install/uninstall/toggle/list)"
 **Interfaces:**
 - Consumes: nothing beyond builtins
 - Produces:
-  - `DEFAULT_BFF_BASE_URL = 'https://skills-md.yancey.app'`, overridable per-call by the `baseUrl` param (tests use this) and by the `EXODUS_SKILLS_BFF_URL` env var when no explicit `baseUrl` is passed
+  - `DEFAULT_BFF_BASE_URL = 'https://skills-md.yancey.app'`, overridable per-call by the `baseUrl` param (tests use this) and by the `ACTOVIA_SKILLS_BFF_URL` env var when no explicit `baseUrl` is passed
   - `interface SkillListItem { id: string; slug: string; name: string; source: string; installs: number; sourceType: string; installUrl: string; url: string }`
   - `interface SkillListResponse { data: SkillListItem[]; pagination: { page: number; perPage: number; total: number; hasMore: boolean } }`
   - `interface SkillSearchResponse { data: SkillListItem[]; query: string; searchType: 'fuzzy' | 'semantic'; count: number; durationMs: number }`
@@ -657,7 +657,7 @@ import type { SkillDetail } from './skills-store'
 export const DEFAULT_BFF_BASE_URL = 'https://skills-md.yancey.app'
 
 function resolveBaseUrl(explicit?: string): string {
-  return explicit ?? process.env.EXODUS_SKILLS_BFF_URL ?? DEFAULT_BFF_BASE_URL
+  return explicit ?? process.env.ACTOVIA_SKILLS_BFF_URL ?? DEFAULT_BFF_BASE_URL
 }
 
 export interface SkillListItem {
@@ -792,7 +792,7 @@ git commit -m "feat: add skills.sh-bff client"
 
 **Interfaces:**
 - Consumes: nothing beyond builtins
-- Produces: `type OpenAppResult = { status: 'opened' } | { status: 'not-found' }`, `openExodusApp(platform?: NodeJS.Platform): Promise<OpenAppResult>` — consumed by Task 7 (`open` command).
+- Produces: `type OpenAppResult = { status: 'opened' } | { status: 'not-found' }`, `openActoviaApp(platform?: NodeJS.Platform): Promise<OpenAppResult>` — consumed by Task 7 (`open` command).
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -801,28 +801,28 @@ Create `src/lib/open-app.test.ts`:
 ```ts
 import { describe, expect, test } from 'bun:test'
 
-import { openExodusApp } from './open-app'
+import { openActoviaApp } from './open-app'
 
-describe('openExodusApp', () => {
-  test('darwin: reports not-found when Exodus.app is not installed', async () => {
-    // CI/dev sandboxes never have Exodus.app installed, so `open -a Exodus`
+describe('openActoviaApp', () => {
+  test('darwin: reports not-found when Actovia.app is not installed', async () => {
+    // CI/dev sandboxes never have Actovia.app installed, so `open -a Actovia`
     // genuinely fails here — this exercises the real code path, no mocking.
-    const result = await openExodusApp('darwin')
+    const result = await openActoviaApp('darwin')
     expect(result.status).toBe('not-found')
   })
 
   test('win32: reports not-found when no known install path exists', async () => {
-    const result = await openExodusApp('win32')
+    const result = await openActoviaApp('win32')
     expect(result.status).toBe('not-found')
   })
 
-  test('linux: reports not-found when `exodus` is not on PATH', async () => {
-    const result = await openExodusApp('linux')
+  test('linux: reports not-found when `actovia` is not on PATH', async () => {
+    const result = await openActoviaApp('linux')
     expect(result.status).toBe('not-found')
   })
 
   test('unsupported platform reports not-found rather than throwing', async () => {
-    const result = await openExodusApp('sunos' as NodeJS.Platform)
+    const result = await openActoviaApp('sunos' as NodeJS.Platform)
     expect(result.status).toBe('not-found')
   })
 })
@@ -843,15 +843,15 @@ import { join } from 'node:path'
 export type OpenAppResult = { status: 'opened' } | { status: 'not-found' }
 
 async function tryDarwin(): Promise<OpenAppResult> {
-  const proc = Bun.spawn(['open', '-a', 'Exodus'], { stdout: 'ignore', stderr: 'ignore' })
+  const proc = Bun.spawn(['open', '-a', 'Actovia'], { stdout: 'ignore', stderr: 'ignore' })
   const exitCode = await proc.exited
   return exitCode === 0 ? { status: 'opened' } : { status: 'not-found' }
 }
 
 async function tryWin32(): Promise<OpenAppResult> {
   const candidates = [
-    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Exodus', 'Exodus.exe'),
-    join(process.env.ProgramFiles ?? '', 'Exodus', 'Exodus.exe')
+    join(process.env.LOCALAPPDATA ?? '', 'Programs', 'Actovia', 'Actovia.exe'),
+    join(process.env.ProgramFiles ?? '', 'Actovia', 'Actovia.exe')
   ]
   for (const exePath of candidates) {
     if (await Bun.file(exePath).exists()) {
@@ -863,17 +863,17 @@ async function tryWin32(): Promise<OpenAppResult> {
 }
 
 async function tryLinux(): Promise<OpenAppResult> {
-  const check = Bun.spawn(['sh', '-c', 'command -v exodus'], {
+  const check = Bun.spawn(['sh', '-c', 'command -v actovia'], {
     stdout: 'ignore',
     stderr: 'ignore'
   })
   const exitCode = await check.exited
   if (exitCode !== 0) return { status: 'not-found' }
-  Bun.spawn(['exodus'], { stdout: 'ignore', stderr: 'ignore' })
+  Bun.spawn(['actovia'], { stdout: 'ignore', stderr: 'ignore' })
   return { status: 'opened' }
 }
 
-export async function openExodusApp(
+export async function openActoviaApp(
   platform: NodeJS.Platform = process.platform
 ): Promise<OpenAppResult> {
   if (platform === 'darwin') return tryDarwin()
@@ -888,14 +888,14 @@ export async function openExodusApp(
 Run: `bun test src/lib/open-app.test.ts`
 Expected: `4 pass`, 0 fail.
 
-(If step 1's darwin test ever runs on a machine that *does* have Exodus.app installed, it will fail with `opened` instead — that's expected and correct; skip that assertion locally if so. CI runners never have it installed.)
+(If step 1's darwin test ever runs on a machine that *does* have Actovia.app installed, it will fail with `opened` instead — that's expected and correct; skip that assertion locally if so. CI runners never have it installed.)
 
 - [ ] **Step 5: Typecheck and commit**
 
 ```bash
 bun run typecheck
 git add src/lib/open-app.ts src/lib/open-app.test.ts
-git commit -m "feat: add cross-platform Exodus app launcher"
+git commit -m "feat: add cross-platform Actovia app launcher"
 ```
 
 ---
@@ -957,14 +957,14 @@ describe('isNewerVersion', () => {
 })
 
 describe('pickReleaseAssetName', () => {
-  test('maps darwin/arm64 to exodus-darwin-arm64', () => {
-    expect(pickReleaseAssetName('darwin', 'arm64')).toBe('exodus-darwin-arm64')
+  test('maps darwin/arm64 to actovia-darwin-arm64', () => {
+    expect(pickReleaseAssetName('darwin', 'arm64')).toBe('actovia-darwin-arm64')
   })
-  test('maps win32/x64 to exodus-windows-x64.exe', () => {
-    expect(pickReleaseAssetName('win32', 'x64')).toBe('exodus-windows-x64.exe')
+  test('maps win32/x64 to actovia-windows-x64.exe', () => {
+    expect(pickReleaseAssetName('win32', 'x64')).toBe('actovia-windows-x64.exe')
   })
-  test('maps linux/x64 to exodus-linux-x64', () => {
-    expect(pickReleaseAssetName('linux', 'x64')).toBe('exodus-linux-x64')
+  test('maps linux/x64 to actovia-linux-x64', () => {
+    expect(pickReleaseAssetName('linux', 'x64')).toBe('actovia-linux-x64')
   })
   test('returns null for an unsupported combination', () => {
     expect(pickReleaseAssetName('sunos' as NodeJS.Platform, 'x64')).toBeNull()
@@ -985,7 +985,7 @@ describe('getLatestNpmVersion', () => {
     const version = await getLatestNpmVersion('https://fake-registry.example.test')
     expect(version).toBe('9.9.9')
     expect(String(fetchSpy.mock.calls[0]?.[0])).toBe(
-      'https://fake-registry.example.test/exodus-cli/latest'
+      'https://fake-registry.example.test/@actovia-ai/cli/latest'
     )
   })
 })
@@ -1002,14 +1002,14 @@ describe('getLatestRelease', () => {
       new Response(
         JSON.stringify({
           tag_name: 'v9.9.9',
-          assets: [{ name: 'exodus-darwin-arm64', browser_download_url: 'https://x/y' }]
+          assets: [{ name: 'actovia-darwin-arm64', browser_download_url: 'https://x/y' }]
         }),
         { status: 200 }
       )
     )
     const release = await getLatestRelease('https://fake-api.example.test')
     expect(release.tag_name).toBe('v9.9.9')
-    expect(release.assets[0]?.name).toBe('exodus-darwin-arm64')
+    expect(release.assets[0]?.name).toBe('actovia-darwin-arm64')
   })
 })
 
@@ -1052,7 +1052,7 @@ import { version as currentVersion } from '../../package.json'
 import { DIST_CHANNEL } from './dist-channel'
 
 export const DEFAULT_NPM_REGISTRY = 'https://registry.npmjs.org'
-export const DEFAULT_GITHUB_API = 'https://api.github.com/repos/exodus-ai-org/exodus-cli'
+export const DEFAULT_GITHUB_API = 'https://api.github.com/repos/actovia-ai/cli'
 
 export function getCurrentVersion(): string {
   return currentVersion
@@ -1075,13 +1075,13 @@ export function pickReleaseAssetName(platform: NodeJS.Platform, arch: string): s
   if (!platformName) return null
   if (arch !== 'x64' && arch !== 'arm64') return null
   const suffix = platform === 'win32' ? '.exe' : ''
-  return `exodus-${platformName}-${arch}${suffix}`
+  return `actovia-${platformName}-${arch}${suffix}`
 }
 
 export async function getLatestNpmVersion(
   baseUrl: string = DEFAULT_NPM_REGISTRY
 ): Promise<string> {
-  const res = await fetch(`${baseUrl}/exodus-cli/latest`)
+  const res = await fetch(`${baseUrl}/@actovia-ai/cli/latest`)
   if (!res.ok) throw new Error(`npm registry lookup failed: ${res.status}`)
   const body = (await res.json()) as { version: string }
   return body.version
@@ -1137,7 +1137,7 @@ git commit -m "feat: add version check (npm registry + GitHub releases)"
 
 ---
 
-## Task 7: Command shell skeleton + `exodus open`
+## Task 7: Command shell skeleton + `actovia open`
 
 **Files:**
 - Create: `src/cli.ts`
@@ -1146,7 +1146,7 @@ git commit -m "feat: add version check (npm registry + GitHub releases)"
 - Test: `src/commands/open.test.ts`
 
 **Interfaces:**
-- Consumes: `openExodusApp` from `src/lib/open-app.ts` (Task 5)
+- Consumes: `openActoviaApp` from `src/lib/open-app.ts` (Task 5)
 - Produces: `buildProgram(): Command` (from `src/cli.ts`) — every later command task (8, 9) adds its own `register*Command(program)` call inside this function; `runOpen(): Promise<{ status: 'opened' | 'not-found' }>` (from `src/commands/open.ts`)
 
 - [ ] **Step 1: Write the failing test**
@@ -1161,14 +1161,14 @@ import { runOpen } from './open'
 
 describe('runOpen', () => {
   test('prints a success line and returns opened when the app launches', async () => {
-    const spy = spyOn(openApp, 'openExodusApp').mockResolvedValue({ status: 'opened' })
+    const spy = spyOn(openApp, 'openActoviaApp').mockResolvedValue({ status: 'opened' })
     const result = await runOpen()
     expect(result.status).toBe('opened')
     spy.mockRestore()
   })
 
   test('returns not-found without throwing when the app is missing', async () => {
-    const spy = spyOn(openApp, 'openExodusApp').mockResolvedValue({ status: 'not-found' })
+    const spy = spyOn(openApp, 'openActoviaApp').mockResolvedValue({ status: 'not-found' })
     const result = await runOpen()
     expect(result.status).toBe('not-found')
     spy.mockRestore()
@@ -1188,14 +1188,14 @@ Create `src/commands/open.ts`:
 ```ts
 import type { Command } from 'commander'
 
-import { openExodusApp, type OpenAppResult } from '../lib/open-app'
+import { openActoviaApp, type OpenAppResult } from '../lib/open-app'
 
 export async function runOpen(): Promise<OpenAppResult> {
-  const result = await openExodusApp()
+  const result = await openActoviaApp()
   if (result.status === 'opened') {
-    console.log('Opened Exodus.')
+    console.log('Opened Actovia.')
   } else {
-    console.error("Exodus isn't installed. Download it: https://exodus.yancey.app")
+    console.error("Actovia isn't installed. Download it: https://actovia.yancey.app")
   }
   return result
 }
@@ -1203,7 +1203,7 @@ export async function runOpen(): Promise<OpenAppResult> {
 export function registerOpenCommand(program: Command): void {
   program
     .command('open')
-    .description('Launch the Exodus desktop app')
+    .description('Launch the Actovia desktop app')
     .action(async () => {
       const result = await runOpen()
       if (result.status === 'not-found') process.exitCode = 1
@@ -1224,8 +1224,8 @@ import { registerOpenCommand } from './commands/open'
 export function buildProgram(): Command {
   const program = new Command()
   program
-    .name('exodus')
-    .description('exodus-cli — launch Exodus, manage skills, and self-update')
+    .name('actovia')
+    .description('@actovia-ai/cli — launch Actovia, manage skills, and self-update')
     .version(version)
 
   registerOpenCommand(program)
@@ -1262,18 +1262,18 @@ Expected: usage text listing the `open` command.
 ```bash
 bun run index.ts open
 ```
-Expected (no Exodus.app installed on this machine): prints `Exodus isn't installed. Download it: https://exodus.yancey.app` and exits 1.
+Expected (no Actovia.app installed on this machine): prints `Actovia isn't installed. Download it: https://actovia.yancey.app` and exits 1.
 
 - [ ] **Step 7: Commit**
 
 ```bash
 git add src/cli.ts src/commands/open.ts src/commands/open.test.ts index.ts
-git commit -m "feat: add exodus open command and Commander shell"
+git commit -m "feat: add actovia open command and Commander shell"
 ```
 
 ---
 
-## Task 8: `exodus update`
+## Task 8: `actovia update`
 
 **Files:**
 - Create: `src/commands/update.ts`
@@ -1338,7 +1338,7 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
   const result = await checkForUpdate()
 
   if (!result.updateAvailable) {
-    console.log(`exodus-cli is up to date (${result.current}).`)
+    console.log(`@actovia-ai/cli is up to date (${result.current}).`)
     return result
   }
 
@@ -1347,10 +1347,10 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
   if (opts.check) return result
 
   if (DIST_CHANNEL === 'npm') {
-    console.log('Run: npm install -g exodus-cli@latest')
+    console.log('Run: npm install -g @actovia-ai/cli@latest')
   } else {
     console.log(
-      'Automatic binary self-update isn\'t wired up in this build yet — download the latest release from https://github.com/exodus-ai-org/exodus-cli/releases/latest'
+      'Automatic binary self-update isn\'t wired up in this build yet — download the latest release from https://github.com/actovia-ai/cli/releases/latest'
     )
   }
 
@@ -1360,7 +1360,7 @@ export async function runUpdate(opts: { check?: boolean } = {}): Promise<UpdateC
 export function registerUpdateCommand(program: Command): void {
   program
     .command('update')
-    .description('Check for a newer exodus-cli version')
+    .description('Check for a newer @actovia-ai/cli version')
     .option('--check', 'only report whether an update is available, take no further action')
     .action(async (opts: { check?: boolean }) => {
       await runUpdate(opts)
@@ -1391,18 +1391,18 @@ Manual verification (hits the real npm registry — network required):
 ```bash
 bun run index.ts update --check
 ```
-Expected: either "up to date (0.1.0)" (nothing published yet, so this call will actually fail with a 404 from the registry since `exodus-cli` isn't published — that's fine to see locally; it confirms the command wiring runs. This becomes meaningful after Task 16 publishes an 0.1.0 to npm).
+Expected: either "up to date (0.1.0)" (nothing published yet, so this call will actually fail with a 404 from the registry since `@actovia-ai/cli` isn't published — that's fine to see locally; it confirms the command wiring runs. This becomes meaningful after Task 16 publishes an 0.1.0 to npm).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add src/cli.ts src/commands/update.ts src/commands/update.test.ts
-git commit -m "feat: add exodus update command"
+git commit -m "feat: add actovia update command"
 ```
 
 ---
 
-## Task 9: `exodus skills <search|install|list|uninstall>` (non-interactive)
+## Task 9: `actovia skills <search|install|list|uninstall>` (non-interactive)
 
 **Files:**
 - Create: `src/commands/skills.ts`
@@ -1440,7 +1440,7 @@ import {
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-skills-cmd-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-skills-cmd-'))
 })
 
 afterEach(async () => {
@@ -1503,7 +1503,7 @@ describe('runSkillsInstall + runSkillsList + runSkillsUninstall', () => {
 })
 ```
 
-(The `{ skillsDir } as never` cast is deliberate: production callers never pass `skillsDir` — it's the default-parameter escape hatch the test uses to avoid touching the real `~/.exodus/skills`. See Step 3's signatures: `skillsDir` is an optional last parameter defaulting to `getSkillsDir()`.)
+(The `{ skillsDir } as never` cast is deliberate: production callers never pass `skillsDir` — it's the default-parameter escape hatch the test uses to avoid touching the real `~/.actovia/skills`. See Step 3's signatures: `skillsDir` is an optional last parameter defaulting to `getSkillsDir()`.)
 
 - [ ] **Step 2: Run tests to verify they fail**
 
@@ -1660,7 +1660,7 @@ Expected (network required, hits the real deployed BFF): a JSON array of skills.
 
 ```bash
 git add src/cli.ts src/commands/skills.ts src/commands/skills.test.ts
-git commit -m "feat: add non-interactive exodus skills subcommands"
+git commit -m "feat: add non-interactive actovia skills subcommands"
 ```
 
 ---
@@ -1978,7 +1978,7 @@ import { InstalledScreen } from './installed-screen'
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-installed-screen-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-installed-screen-'))
   await installSkill(skillsDir, {
     id: 'vercel-labs/skills/find-skills',
     source: 'vercel-labs/skills',
@@ -2001,7 +2001,7 @@ describe('InstalledScreen', () => {
   })
 
   test('shows a message when nothing is installed', async () => {
-    const emptyDir = await mkdtemp(join(tmpdir(), 'exodus-cli-installed-screen-empty-'))
+    const emptyDir = await mkdtemp(join(tmpdir(), 'actovia-cli-installed-screen-empty-'))
     const { lastFrame } = render(<InstalledScreen skillsDir={emptyDir} />)
     await new Promise((r) => setTimeout(r, 10))
     expect(lastFrame()).toContain('No skills installed')
@@ -2161,7 +2161,7 @@ let skillsDir: string
 let fetchSpy: ReturnType<typeof jest.spyOn>
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-detail-screen-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-detail-screen-'))
   fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input: RequestInfo | URL) => {
     const url = String(input)
     if (url.includes('/audit/')) {
@@ -2386,7 +2386,7 @@ let skillsDir: string
 let fetchSpy: ReturnType<typeof jest.spyOn>
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-app-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-app-'))
   fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
     new Response(
       JSON.stringify({ data: [], pagination: { page: 0, perPage: 100, total: 0, hasMore: false } }),
@@ -2495,7 +2495,7 @@ git commit -m "feat: add TUI app shell with Discover/Installed tabs"
 
 ---
 
-## Task 15: Wire the TUI into `exodus skills` (no subcommand)
+## Task 15: Wire the TUI into `actovia skills` (no subcommand)
 
 **Files:**
 - Modify: `src/commands/skills.ts`
@@ -2515,7 +2515,7 @@ import React from 'react'
 import { App } from '../tui/app'
 ```
 
-Change the `registerSkillsCommand` function's `skills` command declaration to add a default action (Commander runs a parent command's own `.action()` only when none of its subcommands matched — i.e., when `exodus skills` is invoked with no further arguments):
+Change the `registerSkillsCommand` function's `skills` command declaration to add a default action (Commander runs a parent command's own `.action()` only when none of its subcommands matched — i.e., when `actovia skills` is invoked with no further arguments):
 
 ```ts
 export function registerSkillsCommand(program: Command): Command {
@@ -2559,7 +2559,7 @@ Expected: the Ink TUI renders in the terminal, showing the Discover tab with a s
 
 ```bash
 git add src/commands/skills.tsx src/commands/skills.test.tsx
-git commit -m "feat: launch the Ink TUI from exodus skills with no subcommand"
+git commit -m "feat: launch the Ink TUI from actovia skills with no subcommand"
 ```
 
 ---
@@ -2582,12 +2582,12 @@ Edit `package.json`. `bin` currently points at `./index.ts` (needed for local `b
 
 ```json
 {
-  "name": "exodus-cli",
+  "name": "@actovia-ai/cli",
   "version": "0.1.0",
   "module": "index.ts",
   "type": "module",
   "bin": {
-    "exodus": "./dist/index.js"
+    "actovia": "./dist/index.js"
   },
   "files": ["dist"],
   "scripts": {
@@ -2660,11 +2660,11 @@ mkdir -p release-binaries
 
 # name : bun --compile --target value
 declare -A TARGETS=(
-  [exodus-darwin-arm64]=bun-darwin-arm64
-  [exodus-darwin-x64]=bun-darwin-x64
-  [exodus-linux-arm64]=bun-linux-arm64
-  [exodus-linux-x64]=bun-linux-x64
-  [exodus-windows-x64.exe]=bun-windows-x64
+  [actovia-darwin-arm64]=bun-darwin-arm64
+  [actovia-darwin-x64]=bun-darwin-x64
+  [actovia-linux-arm64]=bun-linux-arm64
+  [actovia-linux-x64]=bun-linux-x64
+  [actovia-windows-x64.exe]=bun-windows-x64
 )
 
 failed=()
@@ -2691,7 +2691,7 @@ Two things worth calling out about this script:
 - **Backup via a temp-file copy, not a captured string.** An earlier draft captured the original file's content with `ORIGINAL_CONTENT="$(cat ...)"` and rewrote it with `printf '%s' "$ORIGINAL_CONTENT"` — command substitution strips trailing newlines, so every run silently dropped `dist-channel.ts`'s trailing newline, leaving a spurious one-line git diff after every build. Copying the file itself sidesteps the whole class of quoting/newline problems.
 - **`set -e` removed, failures collected instead.** With `-e`, one target failing (e.g. a transient network hiccup fetching a cross-compile toolchain) would abort the loop immediately, silently skipping every target that hadn't run yet. The script now attempts all 5 unconditionally and only exits non-zero at the end if any failed — a transient failure on one target no longer costs you the other four.
 
-The asset names here (`exodus-darwin-arm64`, `exodus-windows-x64.exe`, etc.) must match exactly what `pickReleaseAssetName()` in `src/lib/updater.ts` (Task 6) computes — both were written against the same convention; if either changes, the other must change with it.
+The asset names here (`actovia-darwin-arm64`, `actovia-windows-x64.exe`, etc.) must match exactly what `pickReleaseAssetName()` in `src/lib/updater.ts` (Task 6) computes — both were written against the same convention; if either changes, the other must change with it.
 
 Also add `release-binaries` to `.gitignore` (under the existing "# output" section, alongside `dist`) — these are multi-hundred-MB build artifacts that must never be committed.
 
@@ -2705,13 +2705,13 @@ cat src/lib/dist-channel.ts
 Expected: `release-binaries/` contains all five files; `dist-channel.ts` is back to `DIST_CHANNEL: 'npm' | 'binary' = 'npm'` (the `trap restore EXIT` ran).
 
 ```bash
-./release-binaries/exodus-darwin-arm64 --help  # or the x64 one, whichever matches this machine
+./release-binaries/actovia-darwin-arm64 --help  # or the x64 one, whichever matches this machine
 ```
 Expected: same Commander usage output, and this binary runs with no `bun`/`node` installed at all (it's fully standalone).
 
 - [ ] **Step 5: Add semantic-release config**
 
-This org already uses semantic-release (see `universal-client/.releaserc.json`) for changelog + GitHub release automation. Reuse the same plugin set, but with `npmPublish: true` this time since — unlike the Electron app — this package is meant to be installed from npm.
+This org already uses semantic-release (see `the desktop app/.releaserc.json`) for changelog + GitHub release automation. Reuse the same plugin set, but with `npmPublish: true` this time since — unlike the Electron app — this package is meant to be installed from npm.
 
 Create `.releaserc.json`:
 
@@ -2753,7 +2753,7 @@ bun add -d semantic-release @semantic-release/commit-analyzer @semantic-release/
 
 - [ ] **Step 6: Write the release workflow**
 
-Bun's `--compile` cross-compiles every target from one host (verified while writing this plan — `bun-darwin-arm64`/`bun-darwin-x64`/`bun-windows-x64` all compiled successfully from a single macOS host; `bun-linux-x64`/`bun-linux-arm64` only failed locally due to a sandboxed network's cert restrictions, not the target syntax — on an unrestricted CI runner all five build from one job). This means, unlike `universal-client`'s Electron matrix build (which genuinely needs native per-OS runners), this workflow needs only one job.
+Bun's `--compile` cross-compiles every target from one host (verified while writing this plan — `bun-darwin-arm64`/`bun-darwin-x64`/`bun-windows-x64` all compiled successfully from a single macOS host; `bun-linux-x64`/`bun-linux-arm64` only failed locally due to a sandboxed network's cert restrictions, not the target syntax — on an unrestricted CI runner all five build from one job). This means, unlike `the desktop app`'s Electron matrix build (which genuinely needs native per-OS runners), this workflow needs only one job.
 
 Create `.github/workflows/release.yml`:
 
@@ -2798,7 +2798,7 @@ jobs:
 
 - [ ] **Step 7: Document the required repo secret**
 
-`NPM_TOKEN` (an npm automation token with publish rights for the `exodus-cli` package) must be added to the repo's Actions secrets (`Settings → Secrets and variables → Actions` on `exodus-ai-org/exodus-cli`) before this workflow can publish — this is an account-level action only the repo owner can do, so it isn't part of this plan's automated steps. `GITHUB_TOKEN` is provided automatically by Actions and needs no setup.
+`NPM_TOKEN` (an npm automation token with publish rights for the `@actovia-ai/cli` package) must be added to the repo's Actions secrets (`Settings → Secrets and variables → Actions` on `actovia-ai/cli`) before this workflow can publish — this is an account-level action only the repo owner can do, so it isn't part of this plan's automated steps. `GITHUB_TOKEN` is provided automatically by Actions and needs no setup.
 
 - [ ] **Step 8: Commit**
 
@@ -2812,12 +2812,12 @@ git commit -m "build: add npm + cross-platform binary release pipeline"
 ## Self-Review Notes
 
 **Spec coverage:**
-- `exodus open` → Task 5 (lib) + Task 7 (command). ✓
-- `exodus update` → Task 6 (lib) + Task 8 (command). ✓
-- `exodus help`/`--help` → free from Commander once `buildProgram()` exists (Task 7); no dedicated task needed, verified manually in Task 7 Step 6. ✓
-- `exodus skills` interactive TUI with Discover/Installed tabs, audit-before-install → Tasks 10–15. ✓
-- `exodus skills search/install/list/uninstall` scripted + `--json` → Task 9. ✓
-- Lockfile compatible with `universal-client` → Task 3, verified field-by-field against `skills-manager.ts`. ✓
+- `actovia open` → Task 5 (lib) + Task 7 (command). ✓
+- `actovia update` → Task 6 (lib) + Task 8 (command). ✓
+- `actovia help`/`--help` → free from Commander once `buildProgram()` exists (Task 7); no dedicated task needed, verified manually in Task 7 Step 6. ✓
+- `actovia skills` interactive TUI with Discover/Installed tabs, audit-before-install → Tasks 10–15. ✓
+- `actovia skills search/install/list/uninstall` scripted + `--json` → Task 9. ✓
+- Lockfile compatible with `the desktop app` → Task 3, verified field-by-field against `skills-manager.ts`. ✓
 - Dual npm + GitHub Releases binary distribution with `DIST_CHANNEL` → Task 16 (plus Task 6 for the constant itself and `checkForUpdate`'s branch on it). ✓
 - Non-goals (ClawHub, generic multi-registry, Windows self-replace-in-place, exhaustive Linux discovery) are honored: no task builds any of them.
 
@@ -2828,5 +2828,5 @@ git commit -m "build: add npm + cross-platform binary release pipeline"
 - `SkillListItem`/`SkillListResponse`/`SkillSearchResponse`/`SkillAuditEntry`/`SkillAuditResponse`/`SkillsApiError` are defined once in Task 4 and only imported thereafter (Tasks 9, 11, 13).
 - `OpenAppResult` defined in Task 5, imported by Task 7.
 - `UpdateCheckResult`/`DIST_CHANNEL` defined in Task 6, imported by Task 8 and Task 16.
-- Function names used across task boundaries match exactly: `getSkillsDir`, `installSkill`, `uninstallSkill`, `toggleSkillActive`, `listInstalledSkills`, `listSkills`, `searchSkills`, `getSkillDetail`, `getSkillAudit`, `openExodusApp`, `checkForUpdate`, `getCurrentVersion` — each spelled identically at its definition site and every call site above.
-- Release binary asset naming (`exodus-<platform>-<arch>[.exe]`) is defined once (Task 6's `pickReleaseAssetName`) and Task 16's build script comment explicitly flags the two places that must stay in sync.
+- Function names used across task boundaries match exactly: `getSkillsDir`, `installSkill`, `uninstallSkill`, `toggleSkillActive`, `listInstalledSkills`, `listSkills`, `searchSkills`, `getSkillDetail`, `getSkillAudit`, `openActoviaApp`, `checkForUpdate`, `getCurrentVersion` — each spelled identically at its definition site and every call site above.
+- Release binary asset naming (`actovia-<platform>-<arch>[.exe]`) is defined once (Task 6's `pickReleaseAssetName`) and Task 16's build script comment explicitly flags the two places that must stay in sync.

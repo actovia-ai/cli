@@ -11,7 +11,7 @@ import { InstalledScreen } from './installed-screen'
 let skillsDir: string
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-installed-screen-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-installed-screen-'))
   await installSkill(skillsDir, {
     id: 'vercel-labs/skills/find-skills',
     source: 'vercel-labs/skills',
@@ -48,7 +48,7 @@ async function installMore(count: number) {
 
 describe('InstalledScreen', () => {
   test('points at the Discover tab when nothing is installed', async () => {
-    const emptyDir = await mkdtemp(join(tmpdir(), 'exodus-cli-installed-screen-empty-'))
+    const emptyDir = await mkdtemp(join(tmpdir(), 'actovia-cli-installed-screen-empty-'))
     const { lastFrame } = render(<InstalledScreen skillsDir={emptyDir} />)
     await settle()
     expect(plain(lastFrame())).toContain('Press Tab')
@@ -119,7 +119,7 @@ describe('InstalledScreen', () => {
   })
 
   test('shows a message when nothing is installed', async () => {
-    const emptyDir = await mkdtemp(join(tmpdir(), 'exodus-cli-installed-screen-empty-'))
+    const emptyDir = await mkdtemp(join(tmpdir(), 'actovia-cli-installed-screen-empty-'))
     const { lastFrame } = render(<InstalledScreen skillsDir={emptyDir} />)
     await new Promise((r) => setTimeout(r, 10))
     expect(lastFrame()).toContain('No skills installed')

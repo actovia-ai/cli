@@ -24,7 +24,7 @@ let skillsDir: string
 let fetchSpy: ReturnType<typeof jest.spyOn>
 
 beforeEach(async () => {
-  skillsDir = await mkdtemp(join(tmpdir(), 'exodus-cli-detail-screen-'))
+  skillsDir = await mkdtemp(join(tmpdir(), 'actovia-cli-detail-screen-'))
   fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(
     (async (input: string | URL | Request) => {
       const url = String(input)
@@ -70,7 +70,7 @@ afterEach(async () => {
 describe('DetailScreen', () => {
   test('frames the skill in a panel with its install count', async () => {
     const { lastFrame } = render(
-      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => {}} />
+      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => { }} />
     )
     await new Promise((r) => setTimeout(r, 10))
     const lines = Bun.stripANSI(lastFrame() ?? '').split('\n')
@@ -80,7 +80,7 @@ describe('DetailScreen', () => {
 
   test('renders the audit summary after mount', async () => {
     const { lastFrame } = render(
-      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => {}} />
+      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => { }} />
     )
     await new Promise((r) => setTimeout(r, 10))
     expect(lastFrame()).toContain('Socket')
@@ -94,7 +94,7 @@ describe('DetailScreen', () => {
       .mockImplementation((async () => new Response('', { status: 500 })) as unknown as typeof fetch)
 
     const { lastFrame } = render(
-      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => {}} />
+      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => { }} />
     )
     await new Promise((r) => setTimeout(r, 10))
     const frame = lastFrame()
@@ -120,7 +120,7 @@ describe('DetailScreen', () => {
 
   test('a second Enter after installing does not install again', async () => {
     const installSpy = jest.spyOn(store, 'installSkill')
-    const { stdin } = render(<DetailScreen item={item} skillsDir={skillsDir} onBack={() => {}} />)
+    const { stdin } = render(<DetailScreen item={item} skillsDir={skillsDir} onBack={() => { }} />)
     await new Promise((r) => setTimeout(r, 10))
     stdin.write('\r')
     await new Promise((r) => setTimeout(r, 30))
@@ -136,7 +136,7 @@ describe('DetailScreen', () => {
       .mockRejectedValue(new Error('disk full'))
 
     const { stdin, lastFrame } = render(
-      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => {}} />
+      <DetailScreen item={item} skillsDir={skillsDir} onBack={() => { }} />
     )
     await new Promise((r) => setTimeout(r, 10))
     stdin.write('\r')

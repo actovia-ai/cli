@@ -2,15 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-import { getExodusHome, getSkillsDir } from './paths'
+import { getActoviaHome, getSkillsDir } from './paths'
 
 describe('paths', () => {
-  test('getExodusHome resolves to ~/.exodus', () => {
-    expect(getExodusHome()).toBe(join(homedir(), '.exodus'))
+  test('getActoviaHome resolves to ~/.actovia', () => {
+    expect(getActoviaHome()).toBe(join(homedir(), '.actovia'))
   })
 
-  test('getSkillsDir defaults to <exodusHome>/skills', () => {
-    expect(getSkillsDir()).toBe(join(getExodusHome(), 'skills'))
+  test('getSkillsDir defaults to <actoviaHome>/skills', () => {
+    expect(getSkillsDir()).toBe(join(getActoviaHome(), 'skills'))
   })
 
   test('getSkillsDir accepts an override home for testing', () => {

@@ -32,7 +32,7 @@ actovia skills uninstall <slug> [--json]
 actovia --help
 ```
 
-Skills install into `~/.exodus/skills/<slug>/`, the same directory
+Skills install into `~/.actovia/skills/<slug>/`, the same directory
 `universal-client` (the Actovia desktop app) reads — a skill installed via
 this CLI is immediately usable there too.
 
@@ -45,8 +45,8 @@ bun test                  # run the test suite
 bun run typecheck
 ```
 
-See `docs/superpowers/specs/2026-09-18-exodus-cli-design.md` and
-`docs/superpowers/plans/2026-09-18-exodus-cli-implementation.md` for the
+See `docs/superpowers/specs/2026-09-18-actovia-cli-design.md` and
+`docs/superpowers/plans/2026-09-18-actovia-cli-implementation.md` for the
 full design and implementation history.
 
 ## Release
