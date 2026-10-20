@@ -1,0 +1,147 @@
+import { afterEach, describe, expect, test } from 'bun:test'
+
+import type { DesktopClient, DevicesState, PairedDevice } from '../lib/desktop-client'
+import { DesktopApiError } from '../lib/desktop-client'
+import { PinCancelled } from '../lib/pin-prompt'
+import { qrFor, runDevicesList, runDevicesRevoke, runPair } from './devices'
+
+const phone: PairedDevice = { id: 'd1', name: 'iPhone', createdAt: '2026-10-21T00:00:00Z', lastSeenAt: null }
+
+function fakeClient(states: DevicesState[], overrides: Partial<Record<string, unknown>> = {}) {
+  const calls: string[] = []
+  let i = 0
+  const client = {
+    authorize: async (pin: string) => {
+      calls.push(`authorize ${pin}`)
+      return { token: 'P', expiresAt: 0 }
+    },
+    devices: async () => {
+      calls.push('devices')
+      return states[Math.min(i++, states.length - 1)]!
+    },
+    openPairing: async () => {
+      calls.push('openPairing')
+      return { expiresAt: 120_000, link: 'actovia://pair?h=10.0.0.2&p=63129&c=C&f=F&n=Mini' }
+    },
+    closePairing: async () => {
+      calls.push('closePairing')
+    },
+    revoke: async (id: string) => {
+      calls.push(`revoke ${id}`)
+    },
+    ...overrides
+  } as unknown as DesktopClient
+  return { client, calls }
+}
+
+const quiet = () => {
+  const lines: string[] = []
+  return { lines, print: (t: string) => lines.push(t) }
+}
+
+afterEach(() => {
+  process.exitCode = 0
+})
+
+describe('actovia pair', () => {
+  test('shows the QR code and waits until a new device appears', async () => {
+    const none: DevicesState = { devices: [], pairing: { expiresAt: 120_000, link: 'x' }, lanRunning: true }
+    const { client, calls } = fakeClient([none, none, none, { devices: [phone], pairing: null, lanRunning: true }])
+    const out = quiet()
+    let t = 0
+    const outcome = await runPair(
+      {},
+      { client, askPin: async () => '1234', print: out.print, sleep: async ms => void (t += ms), now: () => t }
+    )
+    expect(outcome).toEqual({ status: 'paired', device: phone })
+    expect(calls.slice(0, 3)).toEqual(['authorize 1234', 'devices', 'openPairing'])
+    expect(out.lines[0]).toBe(qrFor('actovia://pair?h=10.0.0.2&p=63129&c=C&f=F&n=Mini'))
+    expect(out.lines.at(-1)).toBe('Paired iPhone.')
+  })
+
+  test('a device paired before does not count; the window running out does', async () => {
+    const old = { devices: [phone], pairing: { expiresAt: 120_000, link: 'x' }, lanRunning: true }
+    const { client } = fakeClient([old])
+    let t = 0
+    const out = quiet()
+    const outcome = await runPair(
+      {},
+      { client, askPin: async () => '1', print: out.print, sleep: async ms => void (t += ms), now: () => t }
+    )
+    expect(outcome).toEqual({ status: 'expired' })
+    expect(process.exitCode).toBe(1)
+  })
+
+  test('a wrong PIN opens no window and says so', async () => {
+    const { client, calls } = fakeClient([], {
+      authorize: async () => {
+        throw new DesktopApiError('Wrong PIN.', 401, 'WRONG_PIN')
+      }
+    })
+    const errors: string[] = []
+    const original = console.error
+    console.error = (m: string) => void errors.push(m)
+    const outcome = await runPair({}, { client, askPin: async () => '0', print: () => {} })
+    console.error = original
+    expect(outcome).toEqual({ status: 'failed' })
+    expect(calls).not.toContain('openPairing')
+    expect(errors).toEqual(['Wrong PIN.'])
+    expect(process.exitCode).toBe(1)
+  })
+
+  test('a failure after the window opened closes it again', async () => {
+    let n = 0
+    const { client, calls } = fakeClient([], {
+      devices: async () => {
+        if (n++ === 0) return { devices: [], pairing: null, lanRunning: true }
+        throw new DesktopApiError('gone', 0, 'UNREACHABLE')
+      }
+    })
+    const original = console.error
+    console.error = () => {}
+    await runPair({}, { client, askPin: async () => '1', print: () => {}, sleep: async () => {}, now: () => 0 })
+    console.error = original
+    expect(calls).toContain('closePairing')
+  })
+
+  test('cancelling the PIN prompt does nothing', async () => {
+    const { client, calls } = fakeClient([])
+    const outcome = await runPair(
+      {},
+      {
+        client,
+        askPin: async () => {
+          throw new PinCancelled()
+        },
+        print: () => {}
+      }
+    )
+    expect(outcome).toEqual({ status: 'failed' })
+    expect(calls).toEqual([])
+  })
+})
+
+describe('actovia devices', () => {
+  test('lists, as JSON on request', async () => {
+    const { client } = fakeClient([{ devices: [phone], pairing: null, lanRunning: true }])
+    const out = quiet()
+    expect(await runDevicesList({ json: true }, { client, askPin: async () => '1', print: out.print })).toEqual([
+      phone
+    ])
+    expect(JSON.parse(out.lines[0]!)).toEqual([phone])
+  })
+
+  test('revoke checks the id exists first', async () => {
+    const { client, calls } = fakeClient([{ devices: [phone], pairing: null, lanRunning: true }])
+    const out = quiet()
+    expect(await runDevicesRevoke('d1', { client, askPin: async () => '1', print: out.print })).toBe(true)
+    expect(calls).toContain('revoke d1')
+    expect(out.lines).toEqual(['Revoked iPhone. It can no longer reach this computer.'])
+
+    const original = console.error
+    console.error = () => {}
+    expect(await runDevicesRevoke('nope', { client, askPin: async () => '1', print: () => {} })).toBe(false)
+    console.error = original
+    expect(calls).not.toContain('revoke nope')
+  })
+})

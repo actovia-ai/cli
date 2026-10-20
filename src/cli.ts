@@ -1,6 +1,7 @@
 import { Command } from 'commander'
 
 import { version } from '../package.json'
+import { registerDeviceCommands } from './commands/devices'
 import { registerOpenCommand } from './commands/open'
 import { registerSkillsCommand } from './commands/skills'
 import { registerUpdateCommand } from './commands/update'
@@ -17,12 +18,13 @@ export function buildProgram(): Command {
   const program = new Command()
   program
     .name('actovia')
-    .description('Actovia CLI — launch Actovia, manage skills, and self-update')
+    .description('Actovia CLI — launch Actovia, pair phones, manage skills, and self-update')
     .version(version)
 
   registerOpenCommand(program)
   registerUpdateCommand(program)
   registerSkillsCommand(program)
+  registerDeviceCommands(program)
 
   return program
 }

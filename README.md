@@ -24,6 +24,9 @@ instead — no Bun or Node required.
 ```bash
 actovia open                       # launch the Actovia desktop app
 actovia update [--check]           # check for a newer Actovia CLI version
+actovia pair [--invert]            # pair a phone with this machine's Actovia (QR code in the terminal)
+actovia devices [--json]           # list the paired phones
+actovia devices revoke <id>        # unpair one
 actovia skills                     # interactive TUI: browse, view audits, install/uninstall
 actovia skills search <query> [--json]
 actovia skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills
@@ -31,6 +34,15 @@ actovia skills list           [--json]
 actovia skills uninstall <slug> [--json]
 actovia --help
 ```
+
+`actovia pair` and `actovia devices` talk to the Actovia desktop app running on
+the same machine (loopback, `ACTOVIA_API_URL` overrides `http://127.0.0.1:60223`),
+so a homelab Mac can pair a phone over SSH without anyone opening its screen.
+Each asks for Actovia's app-lock PIN (Settings → General → Lock & Privacy) from
+the terminal — never from an argument, a variable or a pipe — and trades it for
+a ten-minute pass to the device routes. Ten wrong PINs and Actovia stops
+accepting it here until it is typed on its own lock screen. `--invert` draws the
+QR code for a light terminal background.
 
 Skills install into `~/.actovia/skills/<slug>/`, the same directory
 the Actovia desktop app reads — a skill installed via
