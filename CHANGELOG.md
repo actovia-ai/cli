@@ -1,3 +1,10 @@
+## [2.1.1](https://github.com/actovia-ai/cli/compare/v2.1.0...v2.1.1) (2026-10-20)
+
+
+### Bug Fixes
+
+* actovia pair closes its pairing window however it ends, and a device's name cannot drive the terminal ([e2a7cd9](https://github.com/actovia-ai/cli/commit/e2a7cd96d663496ae38aefe831e46bc46ae0a8fa))
+
 # [2.1.0](https://github.com/actovia-ai/cli/compare/v2.0.0...v2.1.0) (2026-10-20)
 
 
