@@ -1,3 +1,10 @@
+## [2.3.1](https://github.com/actovia-ai/cli/compare/v2.3.0...v2.3.1) (2026-10-21)
+
+
+### Bug Fixes
+
+* **security:** the PIN goes only to the installed Actovia on this machine ([23334c4](https://github.com/actovia-ai/cli/commit/23334c4ce5500db67f539e64827641a3a496ad43))
+
 # [2.3.0](https://github.com/actovia-ai/cli/compare/v2.2.0...v2.3.0) (2026-10-21)
 
 
