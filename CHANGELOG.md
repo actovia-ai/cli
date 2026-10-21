@@ -1,3 +1,15 @@
+# [2.4.0](https://github.com/actovia-ai/cli/compare/v2.3.1...v2.4.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* **status:** a count from the app that is not a number prints as ? ([7fe7d83](https://github.com/actovia-ai/cli/commit/7fe7d83b3561d1dd3494daace8a2a19c92527e1c))
+
+
+### Features
+
+* **status:** a readable status with a spinner while the app answers ([92599cb](https://github.com/actovia-ai/cli/commit/92599cbcd8e58c81a716b67a9ff98666bf4b7e30))
+
 ## [2.3.1](https://github.com/actovia-ai/cli/compare/v2.3.0...v2.3.1) (2026-10-21)
 
 
