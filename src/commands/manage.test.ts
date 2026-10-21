@@ -81,3 +81,22 @@ describe('actovia usage', () => {
     expect(printed[0]).toBe('Last 7 days: $2.00 · all time $12.00 over 30 requests')
   })
 })
+
+describe('what the app reports', () => {
+  test('is shown, never obeyed: control characters in a model name print as ?', () => {
+    const lines = describeQuota(
+      {
+        cli: 'claude\u001b[2J',
+        windows: [{ name: 'week', usedPercent: 10, resetsAt: null, model: 'opus‮' }],
+        state: 'ok',
+        rejectedWindow: null,
+        overage: false,
+        asOf: 0
+      },
+      0
+    )
+    expect(lines.join('\n')).not.toMatch(/[\u001b‮]/u)
+    expect(lines[0]).toStartWith('claude?[2J: ok')
+    expect(lines[1]).toStartWith('  opus? only: week')
+  })
+})

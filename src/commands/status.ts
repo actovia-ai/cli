@@ -7,6 +7,7 @@ import type { Command } from 'commander'
 import { appVersion, findInstalledApp, HOST_ROUTES_SINCE, latestDesktopRelease, versionOf } from '../lib/desktop-app'
 import { DesktopApiError, DesktopClient, type HostStatus } from '../lib/desktop-client'
 import { checkForUpdate, getCurrentVersion, isNewerVersion, type UpdateCheckResult } from '../lib/updater'
+import { printable } from './devices'
 
 /**
  * `actovia status` and `actovia doctor`: the desktop app on this machine at a
@@ -121,7 +122,8 @@ export function formatStatus(s: Snapshot): string[] {
   } else {
     lines.push(`CLI ${getCurrentVersion()}`)
   }
-  return lines
+  // Versions and paths come from the app and from GitHub: shown, never obeyed.
+  return lines.map(printable)
 }
 
 export type CheckLevel = 'ok' | 'warn' | 'fail'
@@ -227,7 +229,7 @@ export function diagnose(s: Snapshot): Check[] {
 const MARK: Record<CheckLevel, string> = { ok: '✓', warn: '!', fail: '✗' }
 
 export function formatChecks(checks: Check[]): string[] {
-  return checks.map(c => `${MARK[c.level]} ${c.label}${c.fix ? `\n    → ${c.fix}` : ''}`)
+  return checks.map(c => `${MARK[c.level]} ${printable(c.label)}${c.fix ? `\n    → ${printable(c.fix)}` : ''}`)
 }
 
 export interface OutputDeps extends SnapshotDeps {

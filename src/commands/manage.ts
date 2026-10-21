@@ -69,7 +69,7 @@ export function runBackupList(opts: { json?: boolean } = {}, deps: ManageDeps = 
     }
     print(`Automatic backups: ${status.autoBackup ? 'on, daily at 3:00' : 'off'} · last ${when(status.lastBackupAt)}`)
     if (backups.length === 0) print('No backups yet. Make one: actovia backup create')
-    for (const b of backups) print(`${b.name}  ${mb(b.size)}  ${when(b.createdAt)}`)
+    for (const b of backups) print(`${printable(b.name)}  ${mb(b.size)}  ${when(b.createdAt)}`)
     return backups
   })
 }
@@ -85,7 +85,7 @@ export function runBackupCreate(opts: { json?: boolean } = {}, deps: ManageDeps 
 
 function describeTask(t: ScheduledTask): string {
   const schedule = t.cronExpression ? `cron ${t.cronExpression}` : `at ${when(t.runAt)}`
-  const last = t.lastRunAt ? ` · last ran ${when(t.lastRunAt)}${t.lastRunStatus ? ` (${t.lastRunStatus})` : ''}` : ''
+  const last = t.lastRunAt ? ` · last ran ${when(t.lastRunAt)}${t.lastRunStatus ? ` (${printable(t.lastRunStatus)})` : ''}` : ''
   return `${printable(t.title)}\n  ${schedule}${last}`
 }
 
@@ -113,11 +113,11 @@ export function runTasks(opts: { json?: boolean } = {}, deps: ManageDeps = {}) {
 /** One CLI's quota as a line per window; a window past its reset says so. */
 export function describeQuota(q: CliQuota, now: number): string[] {
   const verdict = q.state === 'rejected' ? 'LIMIT REACHED' : q.state === 'warning' ? 'warning' : 'ok'
-  const lines = [`${q.cli}: ${verdict}${q.overage ? ' (overage allowed)' : ''} · as of ${when(q.asOf)}`]
+  const lines = [`${printable(q.cli)}: ${verdict}${q.overage ? ' (overage allowed)' : ''} · as of ${when(q.asOf)}`]
   for (const w of q.windows) {
     const reset =
       w.resetsAt === null ? '' : w.resetsAt <= now ? ' · reset since (not read again)' : ` · resets ${when(w.resetsAt)}`
-    lines.push(`  ${w.model ? `${w.model} only: ` : ''}${w.name}  ${Math.round(w.usedPercent)}%${w.rejected ? ' · stopped' : ''}${reset}`)
+    lines.push(`  ${w.model ? `${printable(w.model)} only: ` : ''}${printable(w.name)}  ${Math.round(w.usedPercent)}%${w.rejected ? ' · stopped' : ''}${reset}`)
   }
   return lines
 }
@@ -148,10 +148,10 @@ export function runUsage(opts: { json?: boolean; days?: string } = {}, deps: Man
     }
     const recentCost = recent.reduce((sum, d) => sum + d.cost, 0)
     print(`Last ${days} days: ${usd(recentCost)} · all time ${usd(usage.totalCost)} over ${usage.totalRequests} requests`)
-    for (const d of recent.slice(-7)) print(`  ${d.date}  ${usd(d.cost)}  ${d.tokens.toLocaleString()} tokens`)
+    for (const d of recent.slice(-7)) print(`  ${printable(d.date)}  ${usd(d.cost)}  ${d.tokens.toLocaleString()} tokens`)
     if (usage.models.length > 0) {
       print('Top models (all time):')
-      for (const m of usage.models.slice(0, 5)) print(`  ${m.model} (${m.provider})  ${usd(m.cost)}  ${m.requests} requests`)
+      for (const m of usage.models.slice(0, 5)) print(`  ${printable(m.model)} (${printable(m.provider)})  ${usd(m.cost)}  ${m.requests} requests`)
     }
     return usage
   })
