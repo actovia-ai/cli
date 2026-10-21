@@ -1,3 +1,16 @@
+# [2.2.0](https://github.com/actovia-ai/cli/compare/v2.1.1...v2.2.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* actovia update refuses a release without checksums instead of installing it unchecked ([4d89695](https://github.com/actovia-ai/cli/commit/4d89695d9eb202ce71845a610479b2051f1e1219))
+
+
+### Features
+
+* actovia devices lists the phones revoked here that have not been told yet ([41c29f3](https://github.com/actovia-ai/cli/commit/41c29f38472dd7d4264c396623d72f5bfbedd646))
+* actovia update installs the new version itself; an Actovia too old for pair says so ([def9d28](https://github.com/actovia-ai/cli/commit/def9d28d355d99dac28998944e11ace547f4c24c))
+
 ## [2.1.1](https://github.com/actovia-ai/cli/compare/v2.1.0...v2.1.1) (2026-10-20)
 
 
