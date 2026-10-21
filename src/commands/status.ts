@@ -102,6 +102,9 @@ export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
   // Versions and paths come from the app and from GitHub: shown, never obeyed —
   // so each is made printable before any escape of ours is put round it.
   const p = printable
+  // Counts are typed as numbers but the JSON is not checked, so a count that
+  // is not one is shown as "?", never printed as it came.
+  const n = (v: unknown) => (Number.isFinite(v) ? String(v) : '?')
   const lines: string[] = []
   const version = desktopVersion(s)
   const name = st.bold(`Actovia${version ? ` ${p(version)}` : ''}`)
@@ -125,13 +128,13 @@ export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
   }
   if (s.host) {
     const h = s.host
-    const listener = h.lan.running ? `listener on, port ${h.lan.port}` : 'listener off'
+    const listener = h.lan.running ? `listener on, port ${n(h.lan.port)}` : 'listener off'
     const listenerBad = h.devices > 0 && !h.lan.running
-    rows.push(['Phones', `${h.devices} paired ${st.dim('·')} ${listenerBad ? st.red(listener) : listener}`])
+    rows.push(['Phones', `${n(h.devices)} paired ${st.dim('·')} ${listenerBad ? st.red(listener) : listener}`])
     const keys = h.secrets.encryption === 'on' ? st.green('encrypted') : st.red('not encrypted (keychain unavailable)')
     rows.push([
       'Keys',
-      keys + (h.secrets.needsReentry > 0 ? ` ${st.dim('·')} ${st.yellow(`${h.secrets.needsReentry} to enter again in Settings`)}` : '')
+      keys + (h.secrets.needsReentry > 0 ? ` ${st.dim('·')} ${st.yellow(`${n(h.secrets.needsReentry)} to enter again in Settings`)}` : '')
     ])
     rows.push(['App lock', h.pinSet ? st.green('PIN set') : st.yellow('no PIN (pair, devices and lock need one)')])
     const free = s.freeBytes === null ? '' : ` ${st.dim('·')} ${s.freeBytes < 2e9 ? st.yellow(`${gb(s.freeBytes)} free`) : `${gb(s.freeBytes)} free`}`

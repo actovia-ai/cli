@@ -76,6 +76,18 @@ const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/
 const strip = (line: string) => line.replace(/\x1b\[[0-9;]*m/g, '')
 
 describe('actovia status', () => {
+  test('a count that is not a number is shown as ?, never printed as it came', () => {
+    const evil = '\x1b]52;c;cHduZWQ=\x07' as unknown as number
+    const out = formatStatus(
+      snapshot({ host: { ...host, devices: evil, lan: { running: true, port: evil }, secrets: { encryption: 'on', needsReentry: evil } } }),
+      { color: true }
+    ).join('\n')
+    expect(out).not.toContain('\x1b]')
+    expect(out).not.toContain('\x07')
+    expect(strip(out)).toContain('? paired')
+    expect(strip(out)).toContain('port ?')
+  })
+
   test('names the version, lock, phones, keys and both updates, labels aligned', () => {
     const lines = formatStatus(
       snapshot({
