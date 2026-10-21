@@ -21,6 +21,7 @@
     "test": "bun test",
     "build:npm": "bun build ./index.ts --outdir dist --target bun --format esm && chmod +x dist/index.js",
     "build:binaries": "bash scripts/build-binaries.sh",
+    "docs:reference": "bun scripts/docs-reference.ts",
     "prepublishOnly": "bun run build:npm"
   },
   "dependencies": {
