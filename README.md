@@ -22,11 +22,23 @@ instead — no Bun or Node required.
 ## Commands
 
 ```bash
+actovia status [--json]            # the desktop app at a glance: version, lock, phones, keys, updates
+actovia doctor [--json]            # what is wrong, and how to fix it
 actovia open                       # launch the Actovia desktop app
+actovia app check [--json]         # is a newer desktop app out?
+actovia app update                 # install it (macOS: checked download, quit, swap, reopen)
+actovia app quit | restart         # quit or restart the desktop app
 actovia update [--check]           # update the CLI to the newest version (--check: only report)
 actovia pair [--invert]            # pair a phone with this machine's Actovia (QR code in the terminal)
 actovia devices [--json]           # list the paired phones
 actovia devices revoke <id>        # unpair one
+actovia lock                       # lock the desktop app now
+actovia logs [-f] [-n 50] [--level warn] [--scope kernel] [--trace <id>] [-q words] [--date YYYY-MM-DD] [--json]
+actovia backup [--json]            # list database backups
+actovia backup create [--json]     # back up now
+actovia tasks [--json]             # Philharmonic's scheduled tasks
+actovia quota [--json]             # what Claude Code and Codex last reported of your plan quota
+actovia usage [--days 30] [--json] # what the models have cost
 actovia skills                     # interactive TUI: browse, view audits, install/uninstall
 actovia skills search <query> [--json]
 actovia skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills
@@ -35,12 +47,15 @@ actovia skills uninstall <slug> [--json]
 actovia --help
 ```
 
-`actovia pair` and `actovia devices` talk to the Actovia desktop app running on
+Everything but `skills` and `update` talks to the Actovia desktop app running on
 the same machine (loopback, `ACTOVIA_API_URL` overrides `http://127.0.0.1:60223`),
 so a homelab Mac can pair a phone over SSH without anyone opening its screen.
-Each asks for Actovia's app-lock PIN (Settings → General → Lock & Privacy) from
-the terminal — never from an argument, a variable or a pipe — and trades it for
-a ten-minute pass to the device routes. Ten wrong PINs and Actovia stops
+`pair`, `devices`, `lock` and `app quit|restart|update` ask for Actovia's
+app-lock PIN (Settings → General → Lock & Privacy) from the terminal — never from an argument, a variable or a pipe — and trade it for
+a ten-minute pass to the device and host routes; the reads (`logs`, `backup`,
+`tasks`, `quota`, `usage`) ask for it only while the app is locked, and a correct
+PIN unlocks it. `status` and `doctor` never ask. Most of this needs Actovia 2.2.0
+or later. Ten wrong PINs and Actovia stops
 accepting it here until it is typed on its own lock screen. `--invert` draws the
 QR code for a light terminal background.
 

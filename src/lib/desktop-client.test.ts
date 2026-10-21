@@ -82,6 +82,44 @@ describe('DesktopClient', () => {
   })
 })
 
+describe('the host routes and the reads', () => {
+  test('call the paths the desktop app serves, the pass only once bought', async () => {
+    const { impl, seen } = fakeFetch(() => ({ status: 200, body: { entries: [], total: 0 } }))
+    const client = new DesktopClient({ fetch: impl })
+    await client.hostStatus()
+    await client.logs({ level: 'warn', scope: 'kernel', traceId: 't1', q: 'boom -noise', pageSize: 5 })
+    expect(client.authorized).toBe(false)
+    expect(seen.map(s => `${s.method} ${new URL(s.url).pathname}`)).toEqual([
+      'GET /api/v1/host/status',
+      'GET /api/v1/logs'
+    ])
+    const params = new URL(seen[1]!.url).searchParams
+    expect(Object.fromEntries(params)).toEqual({
+      level: 'warn',
+      surface: 'kernel',
+      traceId: 't1',
+      q: 'boom -noise',
+      pageSize: '5'
+    })
+    expect(seen[0]!.headers[PRESENCE_HEADER]).toBeUndefined()
+  })
+
+  test('lock, quit and restart are POSTs to the host routes', async () => {
+    const { impl, seen } = fakeFetch(() => ({ status: 200, body: { token: 'PASS', expiresAt: 1 } }))
+    const client = new DesktopClient({ fetch: impl })
+    await client.authorize('1234')
+    await client.lockNow()
+    await client.quit()
+    await client.restart()
+    expect(client.authorized).toBe(true)
+    expect(seen.slice(1).map(s => `${s.method} ${new URL(s.url).pathname} ${s.headers[PRESENCE_HEADER]}`)).toEqual([
+      'POST /api/v1/host/lock PASS',
+      'POST /api/v1/host/quit PASS',
+      'POST /api/v1/host/restart PASS'
+    ])
+  })
+})
+
 describe('bypassProxyForLoopback', () => {
   test('adds the loopback hosts to NO_PROXY, keeping what is there', () => {
     const env: NodeJS.ProcessEnv = { NO_PROXY: 'corp.example, 127.0.0.1' }

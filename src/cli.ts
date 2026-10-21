@@ -1,9 +1,13 @@
 import { Command } from 'commander'
 
 import { version } from '../package.json'
+import { registerAppCommand } from './commands/app'
 import { registerDeviceCommands } from './commands/devices'
+import { registerLogsCommand } from './commands/logs'
+import { registerManageCommands } from './commands/manage'
 import { registerOpenCommand } from './commands/open'
 import { registerSkillsCommand } from './commands/skills'
+import { registerStatusCommands } from './commands/status'
 import { registerUpdateCommand } from './commands/update'
 import {
   prepareUpdateNotice,
@@ -18,13 +22,17 @@ export function buildProgram(): Command {
   const program = new Command()
   program
     .name('actovia')
-    .description('Actovia CLI — launch Actovia, pair phones, manage skills, and self-update')
+    .description('Actovia CLI — run the Actovia desktop app on this machine from a shell: status, updates, phones, logs, skills')
     .version(version)
 
+  registerStatusCommands(program)
   registerOpenCommand(program)
+  registerAppCommand(program)
   registerUpdateCommand(program)
-  registerSkillsCommand(program)
   registerDeviceCommands(program)
+  registerManageCommands(program)
+  registerLogsCommand(program)
+  registerSkillsCommand(program)
 
   return program
 }

@@ -59,36 +59,79 @@ export interface DevicesState {
   revoked?: RevokedDevice[]
 }
 
-export interface CliPass {
-  token: string
-  expiresAt: number
+/** `GET /api/v1/host/status` (Actovia 2.2.0+): answered while locked too. */
+export interface HostStatus {
+  version: string
+  platform: string
+  arch: string
+  startedAt: string
+  dataDir: string
+  locked: boolean
+  pinSet: boolean
+  lan: { running: boolean; port: number }
+  devices: number
+  secrets: { encryption: 'on' | 'unavailable'; needsReentry: number }
+  update: { mode: 'auto' | 'manual'; state: string; availableVersion: string | null }
 }
 
-export interface PairedDevice {
-  id: string
+export interface LogEntry {
+  timestamp: string
+  severityText: string
+  body: string
+  scope: { name: string }
+  attributes: Record<string, unknown>
+  traceId?: string
+}
+
+export interface LogQuery {
+  date?: string
+  /** debug | info | warn | error: that level and above. */
+  level?: string
+  scope?: string
+  traceId?: string
+  /** The Logger tab's search syntax: words, `-word`, `scope:`, `trace:`. */
+  q?: string
+  pageSize?: number
+}
+
+export interface BackupInfo {
   name: string
+  size: number
   createdAt: string
-  lastSeenAt: string | null
 }
 
-export interface PairingWindow {
-  expiresAt: number
-  /** `actovia://pair?…`, what the phone scans. */
-  link: string
+export interface ScheduledTask {
+  id: string
+  title: string
+  cronExpression: string | null
+  runAt: string | null
+  lastRunAt: string | null
+  lastRunStatus: 'completed' | 'failed' | null
 }
 
-/** Revoked on the computer; the device has not come back to learn it yet. */
-export interface RevokedDevice {
-  name: string | null
-  revokedAt: string
+export interface QuotaWindow {
+  name: string
+  usedPercent: number
+  resetsAt: number | null
+  model?: string
+  rejected?: boolean
 }
 
-export interface DevicesState {
-  devices: PairedDevice[]
-  pairing: PairingWindow | null
-  lanRunning: boolean
-  /** Absent from an Actovia older than the list. */
-  revoked?: RevokedDevice[]
+export interface CliQuota {
+  cli: string
+  windows: QuotaWindow[]
+  state: 'ok' | 'warning' | 'rejected'
+  rejectedWindow: string | null
+  overage: boolean
+  asOf: number
+}
+
+export interface UsageSummary {
+  totalCost: number
+  totalTokens: number
+  totalRequests: number
+  daily: { date: string; cost: number; tokens: number }[]
+  models: { model: string; provider: string; cost: number; requests: number }[]
 }
 
 export class DesktopApiError extends Error {
@@ -191,6 +234,66 @@ export class DesktopClient {
     }
     this.pass = pass.token
     return pass
+  }
+
+  /** Whether a pass is held (bought with the PIN in this run). */
+  get authorized(): boolean {
+    return this.pass !== null
+  }
+
+  hostStatus(): Promise<HostStatus> {
+    return this.call<HostStatus>('GET', '/api/v1/host/status')
+  }
+
+  lockNow(): Promise<{ locked: boolean; pinSet: boolean }> {
+    return this.call('POST', '/api/v1/host/lock')
+  }
+
+  async quit(): Promise<void> {
+    await this.call('POST', '/api/v1/host/quit')
+  }
+
+  async restart(): Promise<void> {
+    await this.call('POST', '/api/v1/host/restart')
+  }
+
+  logs(query: LogQuery = {}): Promise<{ entries: LogEntry[]; total: number }> {
+    const params = new URLSearchParams()
+    if (query.date) params.set('date', query.date)
+    if (query.level) params.set('level', query.level)
+    if (query.scope) params.set('surface', query.scope)
+    if (query.traceId) params.set('traceId', query.traceId)
+    if (query.q) params.set('q', query.q)
+    params.set('pageSize', String(query.pageSize ?? 100))
+    return this.call('GET', `/api/v1/logs?${params}`)
+  }
+
+  backups(): Promise<BackupInfo[]> {
+    return this.call('GET', '/api/v1/backup/list')
+  }
+
+  backupStatus(): Promise<{ autoBackup: boolean; lastBackupAt: string | null }> {
+    return this.call('GET', '/api/v1/backup/status')
+  }
+
+  backupNow(): Promise<{ filePath: string }> {
+    return this.call('POST', '/api/v1/backup/now')
+  }
+
+  async tasks(): Promise<{ upcoming: ScheduledTask[]; recurring: ScheduledTask[] }> {
+    const [upcoming, recurring] = await Promise.all([
+      this.call<ScheduledTask[]>('GET', '/api/v1/philharmonic/tasks/upcoming'),
+      this.call<ScheduledTask[]>('GET', '/api/v1/philharmonic/tasks/recurring')
+    ])
+    return { upcoming, recurring }
+  }
+
+  quota(): Promise<CliQuota[]> {
+    return this.call('GET', '/api/v1/agents/quota')
+  }
+
+  usage(): Promise<UsageSummary> {
+    return this.call('GET', '/api/v1/usage')
   }
 
   devices(): Promise<DevicesState> {
