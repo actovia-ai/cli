@@ -12,7 +12,8 @@ function fakeClient() {
     get authorized() {
       return authorized
     },
-    authorize: async (pin: string) => {
+    authorize: async (askPin: () => Promise<string>) => {
+      const pin = await askPin()
       calls.push(`authorize ${pin}`)
       authorized = true
       return { token: 'P', expiresAt: 0 }

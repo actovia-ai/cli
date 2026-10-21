@@ -58,7 +58,9 @@ export async function appVersion(appPath: string, run: Run = runCommand): Promis
 
 export const latestDesktopRelease = (): Promise<GithubRelease> => getLatestRelease(DESKTOP_GITHUB_API)
 
-export const versionOf = (release: GithubRelease) => release.tag_name.replace(/^v/u, '')
+// The tag is GitHub's text: shown and put in a file name, so control characters never pass.
+export const versionOf = (release: GithubRelease) =>
+  release.tag_name.replace(/^v/u, '').replace(/[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/gu, '?')
 
 /** The release's macOS archive for this machine, as the desktop release names it. */
 export function desktopZipName(version: string, arch: string): string | null {
@@ -165,7 +167,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'EACCES' || code === 'EPERM') {
-      throw new Error(`No permission to replace ${appPath}. Run it with sudo, or download it from ${DESKTOP_RELEASES_URL}`)
+      throw new Error(`No permission to replace ${appPath}. Download it from ${DESKTOP_RELEASES_URL} instead (not with sudo: the app would end up owned by root).`)
     }
     throw err
   } finally {

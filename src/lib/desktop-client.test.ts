@@ -28,7 +28,7 @@ describe('DesktopClient', () => {
         : { status: 200, body: { devices: [], pairing: null, lanRunning: false } }
     )
     const client = new DesktopClient({ baseUrl: 'http://127.0.0.1:60223', fetch: impl })
-    await client.authorize('123456')
+    await client.authorize(async () => '123456')
     await client.devices()
 
     expect(seen[0]).toMatchObject({ method: 'POST', url: 'http://127.0.0.1:60223/api/v1/lock/cli-pass' })
@@ -49,7 +49,7 @@ describe('DesktopClient', () => {
     ]
     for (const [status, body, message] of cases) {
       const { impl } = fakeFetch(() => ({ status, body }))
-      const error = await new DesktopClient({ fetch: impl }).authorize('0000').catch(e => e)
+      const error = await new DesktopClient({ fetch: impl }).authorize(async () => '0000').catch(e => e)
       expect(error).toBeInstanceOf(DesktopApiError)
       expect(error.status).toBe(status)
       expect(error.message).toMatch(message)
@@ -107,7 +107,7 @@ describe('the host routes and the reads', () => {
   test('lock, quit and restart are POSTs to the host routes', async () => {
     const { impl, seen } = fakeFetch(() => ({ status: 200, body: { token: 'PASS', expiresAt: 1 } }))
     const client = new DesktopClient({ fetch: impl })
-    await client.authorize('1234')
+    await client.authorize(async () => '1234')
     await client.lockNow()
     await client.quit()
     await client.restart()

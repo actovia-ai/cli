@@ -41,8 +41,8 @@ const clean = (text: string) => text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-
 
 export function formatEntry(e: LogEntry): string {
   const time = new Date(e.timestamp).toLocaleTimeString()
-  const level = e.severityText.padEnd(5)
-  const trace = e.traceId ? `  trace:${e.traceId.slice(0, 8)}` : ''
+  const level = clean(e.severityText).padEnd(5)
+  const trace = e.traceId ? `  trace:${clean(e.traceId.slice(0, 8))}` : ''
   const lines = [`${time} ${level} ${clean(e.scope.name)}  ${clean(e.body)}${trace}`]
   const stack = e.attributes['exception.stacktrace']
   if (typeof stack === 'string') lines.push(...clean(stack).split('\n').map(l => `    ${l}`))

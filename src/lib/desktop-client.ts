@@ -1,3 +1,5 @@
+import { assertListenerIsActovia } from './listener'
+
 /**
  * The Actovia desktop app running on this machine, reached on its loopback
  * port. Its device routes need a person's say-so: `requestCliPass` trades the
@@ -156,16 +158,21 @@ function messageFor(status: number, code: string, retryAfterMs: number): string 
 export interface DesktopClientOptions {
   baseUrl?: string
   fetch?: typeof fetch
+  /** Refuses to send the PIN to anything but Actovia; checks the real listener unless `fetch` is a stand-in. */
+  verifyListener?: (baseUrl: string) => Promise<void>
 }
 
 export class DesktopClient {
   private readonly baseUrl: string
   private readonly fetchImpl: typeof fetch
+  private readonly verifyListener: (baseUrl: string) => Promise<void>
   private pass: string | null = null
 
   constructor(opts: DesktopClientOptions = {}) {
     this.baseUrl = resolveApiUrl(opts.baseUrl)
     this.fetchImpl = opts.fetch ?? fetch
+    this.verifyListener =
+      opts.verifyListener ?? (opts.fetch ? async () => {} : baseUrl => assertListenerIsActovia(baseUrl))
   }
 
   private async call<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -197,8 +204,13 @@ export class DesktopClient {
     return data as T
   }
 
-  /** Trades the app-lock PIN for a pass; later calls of this client carry it. */
-  async authorize(pin: string): Promise<CliPass> {
+  /**
+   * Trades the app-lock PIN for a pass; later calls of this client carry it.
+   * What listens is checked before the PIN is even asked for.
+   */
+  async authorize(askPin: () => Promise<string>): Promise<CliPass> {
+    await this.verifyListener(this.baseUrl)
+    const pin = await askPin()
     let pass: CliPass
     try {
       pass = await this.call<CliPass>('POST', '/api/v1/lock/cli-pass', { pin })

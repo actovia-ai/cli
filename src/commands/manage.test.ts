@@ -27,7 +27,7 @@ describe('actovia lock', () => {
     const client = {
       authorized: false,
       hostStatus: async () => ({ locked: false }),
-      authorize: async (pin: string) => calls.push(`authorize ${pin}`),
+      authorize: async (askPin: () => Promise<string>) => calls.push(`authorize ${await askPin()}`),
       lockNow: async () => (calls.push('lockNow'), { locked: true, pinSet: true })
     } as unknown as DesktopClient
     await runLock({ client, askPin: async () => '1234', print: () => {} })

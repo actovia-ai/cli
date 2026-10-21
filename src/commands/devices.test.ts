@@ -11,7 +11,8 @@ function fakeClient(states: DevicesState[], overrides: Partial<Record<string, un
   const calls: string[] = []
   let i = 0
   const client = {
-    authorize: async (pin: string) => {
+    authorize: async (askPin: () => Promise<string>) => {
+      const pin = await askPin()
       calls.push(`authorize ${pin}`)
       return { token: 'P', expiresAt: 0 }
     },

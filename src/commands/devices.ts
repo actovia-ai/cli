@@ -70,7 +70,7 @@ export async function runPair(
   const listens = deps.client === undefined
   if (listens) process.once('SIGINT', onInterrupt)
   try {
-    await client.authorize(await askPin())
+    await client.authorize(askPin)
     const before = new Set((await client.devices()).devices.map(d => d.id))
     window = await client.openPairing()
     print(qrFor(window.link, opts.invert))
@@ -116,7 +116,7 @@ export async function runDevicesList(
 ): Promise<PairedDevice[] | null> {
   const { client, askPin, print } = defaults(deps)
   try {
-    await client.authorize(await askPin())
+    await client.authorize(askPin)
     const { devices, revoked = [] } = await client.devices()
     if (opts.json) {
       print(JSON.stringify({ devices, revoked }, null, 2))
@@ -147,7 +147,7 @@ export async function runDevicesList(
 export async function runDevicesRevoke(id: string, deps: DeviceDeps = {}): Promise<boolean> {
   const { client, askPin, print } = defaults(deps)
   try {
-    await client.authorize(await askPin())
+    await client.authorize(askPin)
     const { devices } = await client.devices()
     const device = devices.find(d => d.id === id)
     if (!device) {

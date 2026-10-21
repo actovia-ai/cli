@@ -14,12 +14,12 @@ export async function whileUnlocked<T>(
     return await read()
   } catch (err) {
     if (!(err instanceof DesktopApiError) || err.code !== 'APP_LOCKED' || client.authorized) throw err
-    await client.authorize(await askPin())
+    await client.authorize(askPin)
     return await read()
   }
 }
 
 /** Buys a pass with the PIN unless this run holds one already. */
 export async function ensurePass(client: DesktopClient, askPin: () => Promise<string>): Promise<void> {
-  if (!client.authorized) await client.authorize(await askPin())
+  if (!client.authorized) await client.authorize(askPin)
 }
