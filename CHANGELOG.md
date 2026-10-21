@@ -1,3 +1,22 @@
+# [2.3.0](https://github.com/actovia-ai/cli/compare/v2.2.0...v2.3.0) (2026-10-21)
+
+
+### Bug Fixes
+
+* pair and devices say an Actovia older than 2.1.0 is too old, not to retype the PIN ([6d7d288](https://github.com/actovia-ai/cli/commit/6d7d288ef47d39b9202953a4784ecc0f571946fd))
+* status, doctor, backup, tasks, quota and usage print what the app reports as text ([c4c2760](https://github.com/actovia-ai/cli/commit/c4c276077e05e32a8e760baf908cba2524caf379))
+* the CLI reaches the desktop app on a machine with an HTTP proxy ([05dfb5c](https://github.com/actovia-ai/cli/commit/05dfb5c5b47f4892ffb83e9bd48ec52e1c685e12))
+
+
+### Features
+
+* status, doctor, app check/update/open/quit/restart, lock, logs, backup, tasks, quota, usage ([d18c46e](https://github.com/actovia-ai/cli/commit/d18c46eae14511c9dd70274f64fa88e8ef8380f9))
+
+
+### Reverts
+
+* the CLI does not work around an HTTP proxy ([03dacd3](https://github.com/actovia-ai/cli/commit/03dacd3c3dd24b8624628504827a5001c3df0dd9))
+
 # [2.2.0](https://github.com/actovia-ai/cli/compare/v2.1.1...v2.2.0) (2026-10-21)
 
 
