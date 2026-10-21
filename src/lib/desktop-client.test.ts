@@ -43,7 +43,9 @@ describe('DesktopClient', () => {
       [429, { error: { code: 'PIN_LOCKED_OUT', retryAfterMs: 30_000 } }, /30 seconds/],
       [409, { error: { code: 'PIN_NOT_SET' } }, /Lock & Privacy/],
       [423, { error: { code: 'CLI_PIN_DISABLED' } }, /lock screen/],
-      [404, { error: { code: 'NOT_FOUND' } }, /too old/]
+      [404, { error: { code: 'NOT_FOUND' } }, /too old/],
+      // An Actovia older than the pass route, while locked: its lock gate answers.
+      [423, { error: { code: 'APP_LOCKED' } }, /too old.*locked/]
     ]
     for (const [status, body, message] of cases) {
       const { impl } = fakeFetch(() => ({ status, body }))

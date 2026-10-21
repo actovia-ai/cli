@@ -124,7 +124,22 @@ export class DesktopClient {
 
   /** Trades the app-lock PIN for a pass; later calls of this client carry it. */
   async authorize(pin: string): Promise<CliPass> {
-    const pass = await this.call<CliPass>('POST', '/api/v1/lock/cli-pass', { pin })
+    let pass: CliPass
+    try {
+      pass = await this.call<CliPass>('POST', '/api/v1/lock/cli-pass', { pin })
+    } catch (err) {
+      // Actovia 2.1.0+ answers the pass while locked (a correct PIN unlocks
+      // it). An older one has no such route, and while locked its lock gate
+      // answers for the missing route instead of a 404.
+      if (err instanceof DesktopApiError && err.code === 'APP_LOCKED') {
+        throw new DesktopApiError(
+          'This Actovia is too old for this command (it needs 2.1.0 or later), and it is locked. Unlock it on its own screen and update it (Settings → About, or download the latest from https://github.com/actovia-ai/actovia/releases/latest), then try again.',
+          err.status,
+          err.code
+        )
+      }
+      throw err
+    }
     this.pass = pass.token
     return pass
   }
