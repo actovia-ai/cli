@@ -86,7 +86,7 @@ export interface BinaryDeps {
 /**
  * Downloads this platform's binary from the latest release and puts it where
  * the running one is: written beside it, checked against the release's
- * `SHA256SUMS` when it has one, made executable, then renamed over it (the
+ * `SHA256SUMS` (a release without one is refused), made executable, then renamed over it (the
  * same folder, so the swap is atomic). Windows will not overwrite a running
  * executable, so there the old one is moved aside first.
  */
@@ -107,15 +107,20 @@ export async function updateBinary(deps: BinaryDeps = {}): Promise<boolean> {
   const bytes = Buffer.from(await res.arrayBuffer())
   if (bytes.length === 0) throw new Error('Download failed: the file was empty.')
 
+  // A release without checksums is refused, not trusted: leaving the file
+  // out must not be a way around the check.
   const sumsAsset = release.assets.find(a => a.name === 'SHA256SUMS')
-  if (sumsAsset) {
-    const sums = await fetchImpl(sumsAsset.browser_download_url)
-    if (!sums.ok) throw new Error(`Could not read the release's checksums: ${sums.status}`)
-    const expected = parseChecksums(await sums.text()).get(name)
-    const actual = createHash('sha256').update(bytes).digest('hex')
-    if (!expected || expected !== actual) {
-      throw new Error(`The downloaded ${name} does not match the release's checksum; nothing was changed.`)
-    }
+  if (!sumsAsset) {
+    throw new Error(
+      `The ${release.tag_name} release has no checksums, so ${name} cannot be checked; nothing was changed. Download it from ${asset.browser_download_url}`
+    )
+  }
+  const sums = await fetchImpl(sumsAsset.browser_download_url)
+  if (!sums.ok) throw new Error(`Could not read the release's checksums: ${sums.status}`)
+  const expected = parseChecksums(await sums.text()).get(name)
+  const actual = createHash('sha256').update(bytes).digest('hex')
+  if (!expected || expected !== actual) {
+    throw new Error(`The downloaded ${name} does not match the release's checksum; nothing was changed.`)
   }
 
   const next = join(dirname(execPath), `.${name}.new`)

@@ -58,10 +58,19 @@ describe('replacing the binary', () => {
     expect(await readFile(execPath, 'utf8')).toBe('old')
   })
 
-  test('a release without checksums (older ones) still installs', async () => {
+  test('changes nothing when the release has no checksums', async () => {
     const execPath = await installed()
-    await updateBinary({ ...release(), execPath, platform: 'darwin', arch: 'arm64', print: () => {} })
-    expect((await readFile(execPath)).equals(binary)).toBe(true)
+    await expect(updateBinary({ ...release(), execPath, platform: 'darwin', arch: 'arm64', print: () => {} })).rejects.toThrow(
+      /no checksums/
+    )
+    expect(await readFile(execPath, 'utf8')).toBe('old')
+  })
+
+  test('changes nothing when the checksums do not list this binary', async () => {
+    const execPath = await installed()
+    const other = release(`${sum}  actovia-linux-x64\n`)
+    await expect(updateBinary({ ...other, execPath, platform: 'darwin', arch: 'arm64', print: () => {} })).rejects.toThrow(/checksum/)
+    expect(await readFile(execPath, 'utf8')).toBe('old')
   })
 
   test('reads sha256sum output', () => {
