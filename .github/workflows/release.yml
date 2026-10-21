@@ -21,9 +21,11 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.3.12
+          # The version that writes bun.lock; an older one cannot read it and
+          # installs unpinned (v2.2.0's run did).
+          bun-version: 1.4.3
 
-      - run: bun install
+      - run: bun install --frozen-lockfile
 
       - run: bun run typecheck
 
