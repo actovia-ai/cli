@@ -7,6 +7,8 @@ import type { Command } from 'commander'
 import { appVersion, findInstalledApp, HOST_ROUTES_SINCE, latestDesktopRelease, versionOf } from '../lib/desktop-app'
 import { DesktopApiError, DesktopClient, type HostStatus } from '../lib/desktop-client'
 import { checkForUpdate, getCurrentVersion, isNewerVersion, type UpdateCheckResult } from '../lib/updater'
+import { type SpinnerOptions, withSpinner } from '../lib/spinner'
+import { colorEnabled, makeStyle } from '../lib/style'
 import { printable } from './devices'
 
 /**
@@ -84,46 +86,67 @@ function desktopVersion(s: Snapshot): string | null {
   return s.host?.version ?? s.installed?.version ?? null
 }
 
-export function formatStatus(s: Snapshot): string[] {
+export interface FormatOptions {
+  /** ANSI colour and weight; off gives the same text, plain. */
+  color?: boolean
+}
+
+/** The data directory as a person writes it: `~/.actovia` under the home folder. */
+function tildePath(path: string): string {
+  const home = homedir()
+  return path === home || path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path
+}
+
+export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
+  const st = makeStyle(opts.color ?? false)
+  // Versions and paths come from the app and from GitHub: shown, never obeyed —
+  // so each is made printable before any escape of ours is put round it.
+  const p = printable
   const lines: string[] = []
   const version = desktopVersion(s)
+  const name = st.bold(`Actovia${version ? ` ${p(version)}` : ''}`)
+
   if (s.host) {
-    lines.push(
-      `Actovia ${s.host.version} — running for ${since(s.host.startedAt)}, ${s.host.locked ? 'locked' : 'unlocked'}`
-    )
+    const h = s.host
+    const state = h.locked ? st.yellow('locked') : st.green('unlocked')
+    const dot = h.locked ? st.yellow('●') : st.green('●')
+    lines.push(`${dot} ${name}  ${st.green('running')} ${st.dim('·')} ${state} ${st.dim(`· up ${since(h.startedAt)}`)}`)
   } else if (s.hostTooOld) {
-    lines.push(`Actovia${version ? ` ${version}` : ''} — running; update it to ${HOST_ROUTES_SINCE} or later for its status`)
+    lines.push(`${st.yellow('●')} ${name}  ${st.yellow('running')} ${st.dim(`· update it to ${HOST_ROUTES_SINCE} or later for its status`)}`)
   } else if (s.installed) {
-    lines.push(`Actovia${version ? ` ${version}` : ''} — not running (actovia open)`)
+    lines.push(`${st.red('●')} ${name}  ${st.red('not running')} ${st.dim('· actovia open')}`)
   } else {
-    lines.push('Actovia — not running here')
+    lines.push(`${st.red('●')} ${name}  ${st.red('not running here')}`)
   }
+
+  const rows: [label: string, value: string][] = []
   if (version && s.latestDesktop && isNewerVersion(version, s.latestDesktop)) {
-    lines.push(`  Update: ${s.latestDesktop} is out (actovia app update)`)
+    rows.push(['Update', `${st.yellow(`${p(s.latestDesktop)} is out`)} ${st.dim('· actovia app update')}`])
   }
   if (s.host) {
     const h = s.host
-    lines.push(
-      `  Phones: ${h.devices} paired · network listener ${h.lan.running ? `on (port ${h.lan.port})` : 'off'}`
-    )
-    lines.push(
-      `  Keys: ${h.secrets.encryption === 'on' ? 'encrypted' : 'NOT encrypted (keychain unavailable)'}` +
-        (h.secrets.needsReentry > 0 ? ` · ${h.secrets.needsReentry} to enter again in Settings` : '')
-    )
-    lines.push(`  App lock: ${h.pinSet ? 'PIN set' : 'no PIN (pair, devices and lock need one)'}`)
-    lines.push(`  Data: ${h.dataDir}${s.freeBytes !== null ? ` · ${gb(s.freeBytes)} free` : ''}`)
+    const listener = h.lan.running ? `listener on, port ${h.lan.port}` : 'listener off'
+    const listenerBad = h.devices > 0 && !h.lan.running
+    rows.push(['Phones', `${h.devices} paired ${st.dim('·')} ${listenerBad ? st.red(listener) : listener}`])
+    const keys = h.secrets.encryption === 'on' ? st.green('encrypted') : st.red('not encrypted (keychain unavailable)')
+    rows.push([
+      'Keys',
+      keys + (h.secrets.needsReentry > 0 ? ` ${st.dim('·')} ${st.yellow(`${h.secrets.needsReentry} to enter again in Settings`)}` : '')
+    ])
+    rows.push(['App lock', h.pinSet ? st.green('PIN set') : st.yellow('no PIN (pair, devices and lock need one)')])
+    const free = s.freeBytes === null ? '' : ` ${st.dim('·')} ${s.freeBytes < 2e9 ? st.yellow(`${gb(s.freeBytes)} free`) : `${gb(s.freeBytes)} free`}`
+    rows.push(['Data', `${p(tildePath(h.dataDir))}${free}`])
   }
-  if (s.cli) {
-    lines.push(
-      s.cli.updateAvailable
-        ? `CLI ${s.cli.current} — ${s.cli.latest} is out (actovia update)`
-        : `CLI ${s.cli.current}`
-    )
-  } else {
-    lines.push(`CLI ${getCurrentVersion()}`)
-  }
-  // Versions and paths come from the app and from GitHub: shown, never obeyed.
-  return lines.map(printable)
+  const width = Math.max(0, ...rows.map(([label]) => label.length))
+  for (const [label, value] of rows) lines.push(`  ${st.dim(label.padEnd(width))}  ${value}`)
+
+  const cli = s.cli
+    ? s.cli.updateAvailable
+      ? `${st.dim(`CLI ${p(s.cli.current)} ·`)} ${st.yellow(`${p(s.cli.latest)} is out`)} ${st.dim('· actovia update')}`
+      : st.dim(`CLI ${p(s.cli.current)}`)
+    : st.dim(`CLI ${getCurrentVersion()}`)
+  lines.push('', cli)
+  return lines
 }
 
 export type CheckLevel = 'ok' | 'warn' | 'fail'
@@ -234,19 +257,27 @@ export function formatChecks(checks: Check[]): string[] {
 
 export interface OutputDeps extends SnapshotDeps {
   print?: (text: string) => void
+  /** Colour for the status lines; defaults to whether stdout is a terminal that wants it. */
+  color?: boolean
+  /** The loading spinner; JSON output never gets one. */
+  spinner?: SpinnerOptions
+}
+
+function spinnerFor(opts: { json?: boolean }, deps: OutputDeps): SpinnerOptions {
+  return opts.json ? { ...deps.spinner, enabled: false } : (deps.spinner ?? {})
 }
 
 export async function runStatus(opts: { json?: boolean } = {}, deps: OutputDeps = {}): Promise<Snapshot> {
   const print = deps.print ?? ((text: string) => console.log(text))
-  const s = await takeSnapshot(deps)
+  const s = await withSpinner('Checking Actovia…', () => takeSnapshot(deps), spinnerFor(opts, deps))
   if (opts.json) print(JSON.stringify(s, null, 2))
-  else for (const line of formatStatus(s)) print(line)
+  else for (const line of formatStatus(s, { color: deps.color ?? colorEnabled(process.stdout) })) print(line)
   return s
 }
 
 export async function runDoctor(opts: { json?: boolean } = {}, deps: OutputDeps = {}): Promise<Check[]> {
   const print = deps.print ?? ((text: string) => console.log(text))
-  const checks = diagnose(await takeSnapshot(deps))
+  const checks = diagnose(await withSpinner('Checking Actovia…', () => takeSnapshot(deps), spinnerFor(opts, deps)))
   if (opts.json) print(JSON.stringify(checks, null, 2))
   else for (const line of formatChecks(checks)) print(line)
   if (checks.some(c => c.level === 'fail')) process.exitCode = 1
