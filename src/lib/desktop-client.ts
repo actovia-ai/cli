@@ -11,22 +11,6 @@ export function resolveApiUrl(explicit?: string): string {
   return explicit ?? process.env.ACTOVIA_API_URL ?? DEFAULT_API_URL
 }
 
-const LOOPBACK_HOSTS = ['127.0.0.1', 'localhost', '::1']
-
-/**
- * Bun's fetch sends even a loopback request through `http_proxy` unless
- * `NO_PROXY` names the host — and the proxy answers 502 for an address only
- * this machine has. The app is always on this machine: never proxy it.
- */
-export function bypassProxyForLoopback(env: NodeJS.ProcessEnv = process.env): void {
-  const current = env.NO_PROXY ?? env.no_proxy ?? ''
-  if (current.trim() === '*') return
-  const hosts = current.split(',').map(h => h.trim()).filter(Boolean)
-  const missing = LOOPBACK_HOSTS.filter(h => !hosts.includes(h))
-  if (missing.length === 0) return
-  env.NO_PROXY = [...hosts, ...missing].join(',')
-}
-
 export interface CliPass {
   token: string
   expiresAt: number
@@ -181,7 +165,6 @@ export class DesktopClient {
 
   constructor(opts: DesktopClientOptions = {}) {
     this.baseUrl = resolveApiUrl(opts.baseUrl)
-    if (!opts.fetch) bypassProxyForLoopback()
     this.fetchImpl = opts.fetch ?? fetch
   }
 

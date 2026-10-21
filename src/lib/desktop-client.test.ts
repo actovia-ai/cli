@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test'
 
-import { bypassProxyForLoopback, DesktopApiError, DesktopClient, PRESENCE_HEADER, resolveApiUrl } from './desktop-client'
+import { DesktopApiError, DesktopClient, PRESENCE_HEADER, resolveApiUrl } from './desktop-client'
 
 type Seen = { method: string; url: string; headers: Record<string, string>; body?: string }
 
@@ -117,25 +117,5 @@ describe('the host routes and the reads', () => {
       'POST /api/v1/host/quit PASS',
       'POST /api/v1/host/restart PASS'
     ])
-  })
-})
-
-describe('bypassProxyForLoopback', () => {
-  test('adds the loopback hosts to NO_PROXY, keeping what is there', () => {
-    const env: NodeJS.ProcessEnv = { NO_PROXY: 'corp.example, 127.0.0.1' }
-    bypassProxyForLoopback(env)
-    expect(env.NO_PROXY).toBe('corp.example,127.0.0.1,localhost,::1')
-    const empty: NodeJS.ProcessEnv = {}
-    bypassProxyForLoopback(empty)
-    expect(empty.NO_PROXY).toBe('127.0.0.1,localhost,::1')
-  })
-
-  test('reads the lower-case spelling too, and leaves a "*" alone', () => {
-    const lower: NodeJS.ProcessEnv = { no_proxy: 'localhost' }
-    bypassProxyForLoopback(lower)
-    expect(lower.NO_PROXY).toBe('localhost,127.0.0.1,::1')
-    const all: NodeJS.ProcessEnv = { NO_PROXY: '*' }
-    bypassProxyForLoopback(all)
-    expect(all.NO_PROXY).toBe('*')
   })
 })
