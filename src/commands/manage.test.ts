@@ -58,19 +58,28 @@ describe('actovia quota', () => {
 })
 
 describe('actovia usage', () => {
-  test('totals the recent days', async () => {
+  test('totals the recent days in tokens, and never prints money', async () => {
     const client = {
       authorized: false,
       usage: async () => ({
-        totalCost: 12,
-        totalTokens: 0,
+        totalTokens: 1_250_000,
         totalRequests: 30,
         daily: [
-          { date: '2026-09-01', cost: 10, tokens: 1 },
-          { date: '2026-10-20', cost: 1.5, tokens: 1 },
-          { date: '2026-10-21', cost: 0.5, tokens: 1 }
+          { date: '2026-09-01', tokens: 1_000_000 },
+          { date: '2026-10-20', tokens: 200_000 },
+          { date: '2026-10-21', tokens: 50_000 }
         ],
-        models: []
+        models: [
+          {
+            model: 'claude-opus-5-5',
+            provider: 'anthropic',
+            inputTokens: 900_000,
+            outputTokens: 100_000,
+            cacheReadTokens: 600_000,
+            totalTokens: 1_000_000,
+            requests: 20
+          }
+        ]
       })
     } as unknown as DesktopClient
     const printed: string[] = []
@@ -78,7 +87,10 @@ describe('actovia usage', () => {
       { days: '7' },
       { client, print: t => printed.push(t), now: () => Date.parse('2026-10-21T12:00:00Z') }
     )
-    expect(printed[0]).toBe('Last 7 days: $2.00 · all time $12.00 over 30 requests')
+    expect(printed[0]).toBe('Last 7 days: 250,000 tokens · all time 1,250,000 tokens over 30 requests')
+    expect(printed).toContain('  2026-10-20  200,000 tokens')
+    expect(printed).toContain('  claude-opus-5-5 (anthropic)  1,000,000 tokens  20 requests')
+    expect(printed.join('\n')).not.toMatch(/\$|NaN/u)
   })
 })
 

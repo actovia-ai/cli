@@ -133,7 +133,8 @@ export function runQuota(opts: { json?: boolean } = {}, deps: ManageDeps = {}) {
   })
 }
 
-const usd = (n: number) => `$${n.toFixed(2)}`
+/** The app counts tokens, never money (desktop ISSUE-235). */
+const tokens = (n: number) => `${n.toLocaleString('en-US')} tokens`
 
 export function runUsage(opts: { json?: boolean; days?: string } = {}, deps: ManageDeps = {}) {
   const { client, askPin, print, now } = defaults(deps)
@@ -146,12 +147,13 @@ export function runUsage(opts: { json?: boolean; days?: string } = {}, deps: Man
       print(JSON.stringify({ ...usage, daily: recent }, null, 2))
       return usage
     }
-    const recentCost = recent.reduce((sum, d) => sum + d.cost, 0)
-    print(`Last ${days} days: ${usd(recentCost)} · all time ${usd(usage.totalCost)} over ${usage.totalRequests} requests`)
-    for (const d of recent.slice(-7)) print(`  ${printable(d.date)}  ${usd(d.cost)}  ${d.tokens.toLocaleString()} tokens`)
+    const recentTokens = recent.reduce((sum, d) => sum + d.tokens, 0)
+    print(`Last ${days} days: ${tokens(recentTokens)} · all time ${tokens(usage.totalTokens)} over ${usage.totalRequests} requests`)
+    for (const d of recent.slice(-7)) print(`  ${printable(d.date)}  ${tokens(d.tokens)}`)
     if (usage.models.length > 0) {
       print('Top models (all time):')
-      for (const m of usage.models.slice(0, 5)) print(`  ${printable(m.model)} (${printable(m.provider)})  ${usd(m.cost)}  ${m.requests} requests`)
+      for (const m of usage.models.slice(0, 5))
+        print(`  ${printable(m.model)} (${printable(m.provider)})  ${tokens(m.totalTokens)}  ${m.requests} requests`)
     }
     return usage
   })
@@ -198,7 +200,7 @@ export function registerManageCommands(program: Command): void {
 
   program
     .command('usage')
-    .description('What the models have cost: recent days, all time, top models')
+    .description('How many tokens the models have used: recent days, all time, top models')
     .option('--days <n>', 'how many recent days to total', '30')
     .option('--json', 'machine-readable output')
     .action(async (opts: { json?: boolean; days?: string }) => {

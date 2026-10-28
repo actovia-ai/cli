@@ -112,12 +112,20 @@ export interface CliQuota {
   asOf: number
 }
 
+/** `GET /api/v1/usage`: tokens only — the app keeps no prices (desktop ISSUE-235). */
 export interface UsageSummary {
-  totalCost: number
   totalTokens: number
   totalRequests: number
-  daily: { date: string; cost: number; tokens: number }[]
-  models: { model: string; provider: string; cost: number; requests: number }[]
+  daily: { date: string; tokens: number }[]
+  models: {
+    model: string
+    provider: string
+    inputTokens: number
+    outputTokens: number
+    cacheReadTokens: number
+    totalTokens: number
+    requests: number
+  }[]
 }
 
 export class DesktopApiError extends Error {

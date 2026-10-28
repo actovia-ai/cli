@@ -38,7 +38,7 @@ actovia backup [--json]            # list database backups
 actovia backup create [--json]     # back up now
 actovia tasks [--json]             # Philharmonic's scheduled tasks
 actovia quota [--json]             # what Claude Code and Codex last reported of your plan quota
-actovia usage [--days 30] [--json] # what the models have cost
+actovia usage [--days 30] [--json] # tokens the models have used
 actovia skills                     # interactive TUI: browse, view audits, install/uninstall
 actovia skills search <query> [--json]
 actovia skills install <id>  [--json]   # e.g. vercel-labs/skills/find-skills
