@@ -81,6 +81,25 @@ describe('actovia app update', () => {
     expect(ran).not.toContain('open')
   })
 
+  test('the download draws its bar on the terminal and says when it is done', async () => {
+    const { appPath } = await installed()
+    const { run } = fakeRun()
+    const printed: string[] = []
+    const written: string[] = []
+    await updateDesktopApp({
+      ...base,
+      print: t => printed.push(t),
+      progress: { stream: { isTTY: true, columns: 120, write: c => written.push(c) }, enabled: true, color: false },
+      client: quietClient(),
+      run,
+      appPath,
+      release: release(),
+      fetch: fetchFor(`${sum}  ${zipName}\n`)
+    })
+    expect(written.some(w => w.includes('Downloading Actovia 2.2.0'))).toBe(true)
+    expect(printed[0]).toStartWith('Downloaded Actovia 2.2.0 · ')
+  })
+
   test('quits the running app through the API first, and reopens it', async () => {
     const { appPath } = await installed()
     const { run, ran } = fakeRun({ running: 3 })

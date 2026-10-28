@@ -45,6 +45,20 @@ describe('replacing the binary', () => {
     return execPath
   }
 
+  test('the download draws its bar on the terminal', async () => {
+    const execPath = await installed()
+    const written: string[] = []
+    await updateBinary({
+      ...release(`${sum}  ${name}\n`),
+      execPath,
+      platform: 'darwin',
+      arch: 'arm64',
+      print: () => {},
+      progress: { stream: { isTTY: true, columns: 120, write: c => written.push(c) }, enabled: true }
+    })
+    expect(written.some(w => w.includes(`Downloading ${name} (v2.2.0)`))).toBe(true)
+  })
+
   test('swaps in the download when it matches the checksums', async () => {
     const execPath = await installed()
     await updateBinary({ ...release(`${sum}  ${name}\n`), execPath, platform: 'darwin', arch: 'arm64', print: () => {} })

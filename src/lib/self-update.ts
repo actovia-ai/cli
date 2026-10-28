@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { chmod, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
+import { download, type DownloadOptions } from './progress'
 import { getLatestRelease, type GithubRelease, pickReleaseAssetName } from './updater'
 
 /**
@@ -81,6 +82,8 @@ export interface BinaryDeps {
   platform?: NodeJS.Platform
   arch?: string
   print?: (text: string) => void
+  /** The download's bar: where it is drawn, and whether. */
+  progress?: Omit<DownloadOptions, 'print'>
 }
 
 /**
@@ -101,10 +104,7 @@ export async function updateBinary(deps: BinaryDeps = {}): Promise<boolean> {
   const asset = release.assets.find(a => a.name === name)
   if (!asset) throw new Error(`The ${release.tag_name} release has no ${name}.`)
 
-  print(`Downloading ${name} (${release.tag_name})…`)
-  const res = await fetchImpl(asset.browser_download_url)
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`)
-  const bytes = Buffer.from(await res.arrayBuffer())
+  const bytes = await download(await fetchImpl(asset.browser_download_url), `${name} (${release.tag_name})`, { ...deps.progress, print })
   if (bytes.length === 0) throw new Error('Download failed: the file was empty.')
 
   // A release without checksums is refused, not trusted: leaving the file

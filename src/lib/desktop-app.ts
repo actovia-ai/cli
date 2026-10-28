@@ -4,6 +4,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { DesktopApiError, type DesktopClient } from './desktop-client'
+import { download, type DownloadOptions } from './progress'
 import { parseChecksums } from './self-update'
 import { ensurePass } from './session'
 import { getLatestRelease, type GithubRelease, isNewerVersion } from './updater'
@@ -80,6 +81,8 @@ export interface DesktopUpdateDeps {
   sleep?: (ms: number) => Promise<void>
   /** How long to wait for the running app to quit. */
   quitTimeoutMs?: number
+  /** The download's bar: where it is drawn, and whether. */
+  progress?: Omit<DownloadOptions, 'print'>
 }
 
 export type DesktopUpdateResult =
@@ -124,10 +127,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     )
   }
 
-  print(`Downloading Actovia ${latest}…`)
-  const res = await fetchImpl(asset.browser_download_url)
-  if (!res.ok) throw new Error(`Download failed: ${res.status}`)
-  const bytes = Buffer.from(await res.arrayBuffer())
+  const bytes = await download(await fetchImpl(asset.browser_download_url), `Actovia ${latest}`, { ...deps.progress, print })
   const sums = await fetchImpl(sumsAsset.browser_download_url)
   if (!sums.ok) throw new Error(`Could not read the release's checksums: ${sums.status}`)
   const expected = parseChecksums(await sums.text()).get(name)
