@@ -1,3 +1,17 @@
+# [2.5.0](https://github.com/actovia-ai/cli/compare/v2.4.0...v2.5.0) (2026-10-28)
+
+
+### Bug Fixes
+
+* **usage:** tokens, not money — the app no longer reports a cost ([b965804](https://github.com/actovia-ai/cli/commit/b965804688166115bf278b5f1f872a9c6ce3d4ba))
+
+
+### Features
+
+* **cli:** one look for every command (ISSUE-287) ([19c9960](https://github.com/actovia-ai/cli/commit/19c996078268ca63d98d71f6d3e92e5a809ea7d1))
+* **doctor:** a report in groups, each fix once, and a summary to start from (ISSUE-287) ([a8e3417](https://github.com/actovia-ai/cli/commit/a8e3417634036a3074d77552665f006501fbf705))
+* **update:** a progress bar while an update downloads (ISSUE-287) ([5362dd4](https://github.com/actovia-ai/cli/commit/5362dd4f61221a6ea6be23cf3adeca33ff7f0043))
+
 # [2.4.0](https://github.com/actovia-ai/cli/compare/v2.3.1...v2.4.0) (2026-10-21)
 
 
