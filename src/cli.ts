@@ -39,8 +39,8 @@ export function buildProgram(): Command {
 
 export function wantsUpdateNotice(argv: string[]): boolean {
   if (argv.includes(UPDATE_CHECK_ARG)) return false
-  // `actovia update` reports the versions itself; a second line would just echo it.
-  return argv[2] !== 'update'
+  // These report the CLI's version themselves; a second line would just echo it.
+  return !['update', 'status', 'doctor'].includes(argv[2] ?? '')
 }
 
 export interface CliRuntime {

@@ -154,108 +154,147 @@ export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
 
 export type CheckLevel = 'ok' | 'warn' | 'fail'
 
+/** The sections of the report, in the order they are printed. */
+export const CHECK_GROUPS = ['app', 'security', 'phones', 'computer', 'cli'] as const
+export type CheckGroup = (typeof CHECK_GROUPS)[number]
+
+const GROUP_TITLES: Record<CheckGroup, string> = {
+  app: 'App',
+  security: 'Security',
+  phones: 'Phones',
+  computer: 'This computer',
+  cli: 'CLI'
+}
+
 export interface Check {
   level: CheckLevel
-  label: string
-  /** What to do about it. */
+  group: CheckGroup
+  /** A short name, the report's left column: "Version", "Keys". */
+  name: string
+  /** What was found. */
+  detail: string
+  /** What to do about it: a command, or where to go. */
   fix?: string
 }
 
-/** What `actovia doctor` checks, in order, from one snapshot. */
+/**
+ * What `actovia doctor` checks, from one snapshot. One thing wrong is one
+ * check with one fix — an app that is both out of date and too old for the
+ * status route is the Version check alone.
+ */
 export function diagnose(s: Snapshot): Check[] {
   const checks: Check[] = []
+  const add = (group: CheckGroup, level: CheckLevel, name: string, detail: string, fix?: string) =>
+    checks.push(fix ? { level, group, name, detail, fix } : { level, group, name, detail })
+  const n = (v: unknown) => (Number.isFinite(v) ? String(v) : '?')
   const version = desktopVersion(s)
+  const h = s.host
 
   if (process.platform === 'darwin' || s.installed) {
-    checks.push(
-      s.installed
-        ? { level: 'ok', label: `Installed: ${s.installed.path}${s.installed.version ? ` (${s.installed.version})` : ''}` }
-        : { level: 'fail', label: 'Actovia is not installed in /Applications', fix: 'https://actovia.yancey.app' }
-    )
+    if (s.installed) add('app', 'ok', 'Installed', s.installed.path)
+    else add('app', 'fail', 'Installed', 'not in /Applications', 'https://actovia.yancey.app')
   }
 
-  if (s.host) checks.push({ level: 'ok', label: `Running: Actovia ${s.host.version}` })
-  else if (s.hostTooOld)
-    checks.push({
-      level: 'warn',
-      label: `Running, but older than ${HOST_ROUTES_SINCE}: the CLI cannot read its status`,
-      fix: 'actovia app update'
-    })
-  else checks.push({ level: 'fail', label: 'Actovia is not running', fix: 'actovia open' })
-
-  if (version && s.latestDesktop) {
-    checks.push(
-      isNewerVersion(version, s.latestDesktop)
-        ? { level: 'warn', label: `Actovia ${s.latestDesktop} is out (this is ${version})`, fix: 'actovia app update' }
-        : { level: 'ok', label: 'Actovia is up to date' }
-    )
-  }
-  if (s.installed?.version && s.host && s.installed.version !== s.host.version) {
-    checks.push({
-      level: 'warn',
-      label: `The running app (${s.host.version}) is not the installed one (${s.installed.version})`,
-      fix: 'actovia app restart'
-    })
+  // Too old to answer, yet the installed app is new enough: what runs is an
+  // older build that was never restarted after an update.
+  const staleProcess = Boolean(s.hostTooOld && s.installed?.version && !isNewerVersion(s.installed.version, HOST_ROUTES_SINCE))
+  const outOfDate = Boolean(version && s.latestDesktop && isNewerVersion(version, s.latestDesktop))
+  if (version || s.hostTooOld) {
+    const parts = [version ?? `older than ${HOST_ROUTES_SINCE}`]
+    if (outOfDate) parts.push(`${s.latestDesktop} is out`)
+    else if (version && s.latestDesktop) parts.push('up to date')
+    let detail = parts.join(' · ')
+    if (s.hostTooOld && !staleProcess && version) detail += `; the CLI needs ${HOST_ROUTES_SINCE} or later to read it`
+    if (outOfDate || (s.hostTooOld && !staleProcess)) add('app', 'warn', 'Version', detail, 'actovia app update')
+    else add('app', 'ok', 'Version', detail)
   }
 
-  if (s.host) {
-    const h = s.host
-    checks.push(
-      h.pinSet
-        ? { level: 'ok', label: 'App-lock PIN is set' }
-        : {
-            level: 'warn',
-            label: 'No app-lock PIN: pair, devices, lock, quit and restart need one',
-            fix: 'Settings → General → Lock & Privacy'
-          }
-    )
-    checks.push(
-      h.secrets.encryption === 'on'
-        ? { level: 'ok', label: 'Keys are encrypted at rest' }
-        : { level: 'fail', label: 'The keychain is unavailable: keys are not encrypted', fix: 'Open Actovia on the screen once and allow its keychain access' }
-    )
-    if (h.secrets.needsReentry > 0) {
-      checks.push({
-        level: 'warn',
-        label: `${h.secrets.needsReentry} key${h.secrets.needsReentry === 1 ? '' : 's'} to enter again (the app reads them as unset)`,
-        fix: 'Settings on the phone or the computer'
-      })
-    }
-    if (h.devices > 0 && !h.lan.running) {
-      checks.push({ level: 'fail', label: `${h.devices} phone(s) paired but the network listener is off`, fix: 'actovia app restart' })
-    } else {
-      checks.push({
-        level: 'ok',
-        label: h.devices > 0 ? `${h.devices} phone(s) paired, network listener on` : 'No phones paired (actovia pair)'
-      })
-    }
-    if (h.update.state === 'error') {
-      checks.push({ level: 'warn', label: "The app's own update check failed", fix: 'actovia app check' })
-    }
+  if (h) {
+    const state = `${h.locked ? 'locked' : 'unlocked'} · up ${since(h.startedAt)}`
+    if (s.installed?.version && s.installed.version !== h.version) {
+      add('app', 'warn', 'Running', `${h.version}, not the installed ${s.installed.version}`, 'actovia app restart')
+    } else add('app', 'ok', 'Running', state)
+    if (h.update.state === 'error') add('app', 'warn', 'Updater', "the app's own update check failed", 'actovia app check')
+  } else if (staleProcess) {
+    const detail = `an Actovia older than the installed ${s.installed?.version}`
+    if (outOfDate) add('app', 'warn', 'Running', `${detail} · the update restarts it`)
+    else add('app', 'warn', 'Running', detail, 'actovia app restart')
+  } else if (s.hostTooOld) {
+    add('app', 'ok', 'Running', `yes · its state needs ${HOST_ROUTES_SINCE} or later`)
+  } else {
+    add('app', 'fail', 'Running', 'no', s.installed || process.platform !== 'darwin' ? 'actovia open' : undefined)
+  }
+
+  if (h) {
+    if (h.pinSet) add('security', 'ok', 'App lock', 'PIN set')
+    else add('security', 'warn', 'App lock', 'no PIN · pair, devices, lock, quit and restart need one', 'Settings → General → Lock & Privacy')
+
+    const reentry = h.secrets.needsReentry > 0 ? ` · ${n(h.secrets.needsReentry)} to enter again` : ''
+    if (h.secrets.encryption !== 'on') {
+      add('security', 'fail', 'Keys', `not encrypted · the keychain is unavailable${reentry}`, 'Open Actovia on the screen once and allow its keychain access')
+    } else if (reentry) {
+      add('security', 'warn', 'Keys', `encrypted${reentry} (read as unset until then)`, 'Settings on the phone or the computer')
+    } else add('security', 'ok', 'Keys', 'encrypted at rest')
+
+    if (h.devices > 0 && !h.lan.running) add('phones', 'fail', 'Paired', `${n(h.devices)} · the network listener is off`, 'actovia app restart')
+    else if (h.devices > 0) add('phones', 'ok', 'Paired', `${n(h.devices)} · listener on, port ${n(h.lan.port)}`)
+    else add('phones', 'ok', 'Paired', 'none yet · actovia pair')
   }
 
   if (s.freeBytes !== null) {
-    checks.push(
-      s.freeBytes < 2e9
-        ? { level: 'warn', label: `Only ${gb(s.freeBytes)} free for the data directory` }
-        : { level: 'ok', label: `${gb(s.freeBytes)} free for the data directory` }
-    )
+    const detail = `${gb(s.freeBytes)} free for ${tildePath(h?.dataDir ?? join(homedir(), '.actovia'))}`
+    add('computer', s.freeBytes < 2e9 ? 'warn' : 'ok', 'Disk', detail)
   }
 
   if (s.cli) {
-    checks.push(
-      s.cli.updateAvailable
-        ? { level: 'warn', label: `CLI ${s.cli.latest} is out (this is ${s.cli.current})`, fix: 'actovia update' }
-        : { level: 'ok', label: 'The CLI is up to date' }
-    )
+    if (s.cli.updateAvailable) add('cli', 'warn', 'Version', `${s.cli.current} · ${s.cli.latest} is out`, 'actovia update')
+    else add('cli', 'ok', 'Version', `${s.cli.current} · up to date`)
   }
-  return checks
+  return checks.sort((a, b) => CHECK_GROUPS.indexOf(a.group) - CHECK_GROUPS.indexOf(b.group))
 }
 
-const MARK: Record<CheckLevel, string> = { ok: '✓', warn: '!', fail: '✗' }
+/** The report: a title, one section per group, the fix under what it fixes, a summary. */
+export function formatChecks(checks: Check[], opts: FormatOptions = {}): string[] {
+  const st = makeStyle(opts.color ?? false)
+  // Paths and versions come from the app and from GitHub: shown, never obeyed.
+  const p = printable
+  const mark: Record<CheckLevel, string> = { ok: st.green('✓'), warn: st.yellow('!'), fail: st.red('✗') }
+  const width = Math.max(0, ...checks.map(c => c.name.length))
+  const lines = [st.bold('Actovia doctor')]
 
-export function formatChecks(checks: Check[]): string[] {
-  return checks.map(c => `${MARK[c.level]} ${printable(c.label)}${c.fix ? `\n    → ${printable(c.fix)}` : ''}`)
+  for (const group of CHECK_GROUPS) {
+    const own = checks.filter(c => c.group === group)
+    if (own.length === 0) continue
+    lines.push('', st.bold(GROUP_TITLES[group]))
+    for (const c of own) {
+      lines.push(`  ${mark[c.level]} ${st.dim(p(c.name).padEnd(width))}  ${p(c.detail)}`)
+      if (c.fix) lines.push(`${' '.repeat(width + 6)}${st.dim('→')} ${st.cyan(p(c.fix))}`)
+    }
+  }
+
+  if (!checks.some(c => c.group === 'security')) {
+    const running = checks.find(c => c.group === 'app' && c.name === 'Running')
+    lines.push(
+      '',
+      st.dim(`Security and phones are checked once ${running?.level !== 'fail' ? 'the CLI can read the app' : 'Actovia is running'}.`)
+    )
+  }
+
+  const fails = checks.filter(c => c.level === 'fail')
+  const warns = checks.filter(c => c.level === 'warn')
+  lines.push('')
+  if (fails.length === 0 && warns.length === 0) {
+    lines.push(st.green(`All ${checks.length} checks pass.`))
+    return lines
+  }
+  const parts: string[] = []
+  if (fails.length) parts.push(st.red(`${fails.length} to fix`))
+  if (warns.length) parts.push(st.yellow(`${warns.length} to look at`))
+  parts.push(`${checks.length - fails.length - warns.length} fine`)
+  lines.push(parts.join(st.dim(' · ')))
+  const first = [...fails, ...warns].find(c => c.fix)
+  if (first?.fix) lines.push(`Start with: ${st.cyan(p(first.fix))}`)
+  return lines
 }
 
 export interface OutputDeps extends SnapshotDeps {
@@ -282,7 +321,7 @@ export async function runDoctor(opts: { json?: boolean } = {}, deps: OutputDeps 
   const print = deps.print ?? ((text: string) => console.log(text))
   const checks = diagnose(await withSpinner('Checking Actovia…', () => takeSnapshot(deps), spinnerFor(opts, deps)))
   if (opts.json) print(JSON.stringify(checks, null, 2))
-  else for (const line of formatChecks(checks)) print(line)
+  else for (const line of formatChecks(checks, { color: deps.color ?? colorEnabled(process.stdout) })) print(line)
   if (checks.some(c => c.level === 'fail')) process.exitCode = 1
   return checks
 }

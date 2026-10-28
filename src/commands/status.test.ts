@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test'
 
 import { DesktopApiError, type DesktopClient, type HostStatus } from '../lib/desktop-client'
-import { diagnose, formatStatus, runDoctor, runStatus, type Snapshot, takeSnapshot } from './status'
+import { HOST_ROUTES_SINCE } from '../lib/desktop-app'
+import { type Check, diagnose, formatChecks, formatStatus, runDoctor, runStatus, type Snapshot, takeSnapshot } from './status'
 
 const host: HostStatus = {
   version: '2.2.0',
@@ -187,8 +188,15 @@ describe('actovia status', () => {
 })
 
 describe('actovia doctor', () => {
+  const find = (checks: Check[], group: string, name: string) => checks.find(c => c.group === group && c.name === name)
+
   test('all well is all ticks', () => {
     expect(diagnose(snapshot()).every(c => c.level === 'ok')).toBe(true)
+  })
+
+  test('checks come in groups, in a fixed order', () => {
+    const groups = diagnose(snapshot()).map(c => c.group)
+    expect([...new Set(groups)]).toEqual(['app', 'security', 'phones', 'computer', 'cli'])
   })
 
   test('says what is wrong and how to fix it', () => {
@@ -205,13 +213,102 @@ describe('actovia doctor', () => {
         freeBytes: 1e9
       })
     )
-    const by = (text: RegExp) => checks.find(c => text.test(c.label))
-    expect(by(/2\.2\.0 is out/)).toMatchObject({ level: 'warn', fix: 'actovia app update' })
-    expect(by(/not the installed one/)).toMatchObject({ fix: 'actovia app restart' })
-    expect(by(/No app-lock PIN/)?.level).toBe('warn')
-    expect(by(/keychain is unavailable/)?.level).toBe('fail')
-    expect(by(/network listener is off/)?.level).toBe('fail')
-    expect(by(/Only 1\.0 GB/)?.level).toBe('warn')
+    expect(find(checks, 'app', 'Version')).toMatchObject({ level: 'warn', detail: '2.1.9 · 2.2.0 is out', fix: 'actovia app update' })
+    expect(find(checks, 'app', 'Running')).toMatchObject({ level: 'warn', fix: 'actovia app restart' })
+    expect(find(checks, 'app', 'Running')?.detail).toContain('not the installed 2.2.0')
+    expect(find(checks, 'security', 'App lock')?.level).toBe('warn')
+    expect(find(checks, 'security', 'Keys')?.level).toBe('fail')
+    expect(find(checks, 'phones', 'Paired')).toMatchObject({ level: 'fail', fix: 'actovia app restart' })
+    expect(find(checks, 'computer', 'Disk')).toMatchObject({ level: 'warn', detail: '1.0 GB free for /Users/me/.actovia' })
+  })
+
+  test('an app too old to report and out of date is one check with one fix', () => {
+    const checks = diagnose(
+      snapshot({
+        host: null,
+        hostTooOld: true,
+        installed: { path: '/Applications/Actovia.app', version: '2.1.0' },
+        latestDesktop: '2.4.0',
+        cli: { updateAvailable: true, current: '2.3.1', latest: '2.4.0' }
+      })
+    )
+    expect(checks.filter(c => c.fix === 'actovia app update')).toHaveLength(1)
+    expect(find(checks, 'app', 'Version')?.detail).toBe(`2.1.0 · 2.4.0 is out; the CLI needs ${HOST_ROUTES_SINCE} or later to read it`)
+    expect(find(checks, 'app', 'Running')).toMatchObject({ level: 'ok' })
+    expect(find(checks, 'cli', 'Version')).toMatchObject({ level: 'warn', detail: '2.3.1 · 2.4.0 is out', fix: 'actovia update' })
+  })
+
+  test('an old build still running after a newer one was installed is said as that, not as a contradiction', () => {
+    const base = { host: null, hostTooOld: true, installed: { path: '/Applications/Actovia.app', version: HOST_ROUTES_SINCE } }
+    const stale = diagnose(snapshot({ ...base, latestDesktop: '9.0.0' }))
+    expect(find(stale, 'app', 'Version')?.detail).toBe(`${HOST_ROUTES_SINCE} · 9.0.0 is out`)
+    expect(find(stale, 'app', 'Running')).toEqual({
+      level: 'warn',
+      group: 'app',
+      name: 'Running',
+      detail: `an Actovia older than the installed ${HOST_ROUTES_SINCE} · the update restarts it`
+    })
+    const current = diagnose(snapshot({ ...base, latestDesktop: HOST_ROUTES_SINCE }))
+    expect(find(current, 'app', 'Version')?.level).toBe('ok')
+    expect(find(current, 'app', 'Running')).toMatchObject({ level: 'warn', fix: 'actovia app restart' })
+    expect(formatChecks(current)).toContain('Security and phones are checked once the CLI can read the app.')
+  })
+
+  test('not running is a failure with its fix, and nothing is said about what it cannot see', () => {
+    const checks = diagnose(snapshot({ host: null }))
+    expect(find(checks, 'app', 'Running')).toMatchObject({ level: 'fail', fix: 'actovia open' })
+    expect(checks.some(c => c.group === 'security' || c.group === 'phones')).toBe(false)
+  })
+
+  test('the report: a title, groups, names aligned, the fix under its value, a summary', () => {
+    const lines = formatChecks(
+      diagnose(
+        snapshot({
+          host: null,
+          hostTooOld: true,
+          installed: { path: '/Applications/Actovia.app', version: '2.1.0' },
+          latestDesktop: '2.4.0',
+          cli: { updateAvailable: true, current: '2.3.1', latest: '2.4.0' }
+        })
+      )
+    )
+    expect(lines).toEqual([
+      'Actovia doctor',
+      '',
+      'App',
+      '  ✓ Installed  /Applications/Actovia.app',
+      `  ! Version    2.1.0 · 2.4.0 is out; the CLI needs ${HOST_ROUTES_SINCE} or later to read it`,
+      '               → actovia app update',
+      `  ✓ Running    yes · its state needs ${HOST_ROUTES_SINCE} or later`,
+      '',
+      'This computer',
+      '  ✓ Disk       50.0 GB free for ~/.actovia',
+      '',
+      'CLI',
+      '  ! Version    2.3.1 · 2.4.0 is out',
+      '               → actovia update',
+      '',
+      'Security and phones are checked once the CLI can read the app.',
+      '',
+      '2 to look at · 3 fine',
+      'Start with: actovia app update'
+    ])
+  })
+
+  test('the summary puts a failure first and says when all is well', () => {
+    const failing = formatChecks(diagnose(snapshot({ host: null, latestDesktop: '2.3.0' })))
+    expect(failing.at(-2)).toBe('1 to fix · 1 to look at · 3 fine')
+    expect(failing.at(-1)).toBe('Start with: actovia open')
+    expect(formatChecks(diagnose(snapshot())).at(-1)).toBe('All 8 checks pass.')
+  })
+
+  test('colour only adds escapes; text from the app is made printable', () => {
+    const checks = diagnose(snapshot({ host: null, latestDesktop: '2.3.0' }))
+    const colored = formatChecks(checks, { color: true })
+    expect(colored.some(l => ANSI.test(l))).toBe(true)
+    expect(colored.map(strip)).toEqual(formatChecks(checks))
+    const evil = formatChecks(diagnose(snapshot({ installed: { path: '/A\x1b]52;c;x\x07pp', version: '2.2.0' } })), { color: true }).join('\n')
+    expect(evil).not.toContain('\x1b]')
   })
 
   test('exits 1 when something fails', async () => {

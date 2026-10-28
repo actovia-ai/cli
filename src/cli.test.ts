@@ -31,6 +31,11 @@ describe('wantsUpdateNotice', () => {
     expect(wantsUpdateNotice(ARGV('update'))).toBe(false)
   })
 
+  test('stays quiet for status and doctor, which show the CLI version themselves', () => {
+    expect(wantsUpdateNotice(ARGV('status'))).toBe(false)
+    expect(wantsUpdateNotice(ARGV('doctor'))).toBe(false)
+  })
+
   test('stays quiet during a background refresh run', () => {
     expect(wantsUpdateNotice(ARGV(UPDATE_CHECK_ARG))).toBe(false)
   })

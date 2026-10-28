@@ -21,6 +21,7 @@ export interface Style {
   green: (s: string) => string
   yellow: (s: string) => string
   red: (s: string) => string
+  cyan: (s: string) => string
 }
 
 const sgr = (open: number, close: number) => (s: string) => `\x1b[${open}m${s}\x1b[${close}m`
@@ -30,11 +31,12 @@ const COLORED: Style = {
   dim: sgr(2, 22),
   green: sgr(32, 39),
   yellow: sgr(33, 39),
-  red: sgr(31, 39)
+  red: sgr(31, 39),
+  cyan: sgr(36, 39)
 }
 
 const id = (s: string) => s
-const PLAIN: Style = { bold: id, dim: id, green: id, yellow: id, red: id }
+const PLAIN: Style = { bold: id, dim: id, green: id, yellow: id, red: id, cyan: id }
 
 export function makeStyle(color: boolean): Style {
   return color ? COLORED : PLAIN
