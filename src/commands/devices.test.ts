@@ -57,7 +57,9 @@ describe('actovia pair', () => {
     expect(outcome).toEqual({ status: 'paired', device: phone })
     expect(calls.slice(0, 3)).toEqual(['authorize 1234', 'devices', 'openPairing'])
     expect(out.lines[0]).toBe(qrFor('actovia://pair?h=10.0.0.2&p=63129&c=C&f=F&n=Mini'))
-    expect(out.lines.at(-1)).toBe('Paired iPhone.')
+    expect(out.lines.at(-1)).toBe('✓ Paired iPhone.')
+    expect(out.lines.slice(1)).toContain('  Settings → Computer → Scan pairing code')
+    expect(out.lines.slice(1)).toContain('  It works once and expires in 2 min.')
   })
 
   test('a device paired before does not count; the window running out does', async () => {
@@ -70,6 +72,7 @@ describe('actovia pair', () => {
       { client, askPin: async () => '1', print: out.print, sleep: async ms => void (t += ms), now: () => t }
     )
     expect(outcome).toEqual({ status: 'expired' })
+    expect(out.lines.slice(-2)).toEqual(['✗ The pairing code expired.', '  → actovia pair'])
     expect(process.exitCode).toBe(1)
   })
 
@@ -90,7 +93,7 @@ describe('actovia pair', () => {
     const out = quiet()
     let t = 0
     await runPair({}, { client, askPin: async () => '1', print: out.print, sleep: async ms => void (t += ms), now: () => t })
-    expect(out.lines.at(-1)).toBe('Paired iPhone?[2J?]0;pwned??.')
+    expect(out.lines.at(-1)).toBe('✓ Paired iPhone?[2J?]0;pwned??.')
     expect(printable('a\u202eb')).toBe('a?b')
   })
 
@@ -107,7 +110,7 @@ describe('actovia pair', () => {
     console.error = original
     expect(outcome).toEqual({ status: 'failed' })
     expect(calls).not.toContain('openPairing')
-    expect(errors).toEqual(['Wrong PIN.'])
+    expect(errors.map(e => e.replace(/\x1b\[[0-9;]*m/g, ''))).toEqual(['✗ Wrong PIN.'])
     expect(process.exitCode).toBe(1)
   })
 
@@ -161,6 +164,24 @@ describe('actovia devices', () => {
     await runDevicesList({}, { client, askPin: async () => '1', print: out.print })
     expect(out.lines.join('\n')).toMatch(/Revoked, not told yet/)
     expect(out.lines.join('\n')).toMatch(/Old\?\[2JiPad/)
+    expect(out.lines.slice(0, 2)).toEqual(['No devices paired yet.', '  → actovia pair'])
+  })
+
+  test('a table of the paired devices, then how to unpair one', async () => {
+    const now = Date.parse('2026-10-28T00:00:00Z')
+    const tablet: PairedDevice = { id: 'd2-long-id', name: 'iPad mini', createdAt: '2026-10-27T00:00:00Z', lastSeenAt: '2026-10-27T23:55:00Z' }
+    const { client } = fakeClient([{ devices: [phone, tablet], pairing: null, lanRunning: true }])
+    const out = quiet()
+    await runDevicesList({}, { client, askPin: async () => '1', print: out.print, now: () => now })
+    expect(out.lines).toEqual([
+      'Paired devices',
+      '',
+      '  Name       Paired      Last seen  ID',
+      '  iPhone     7 days ago  never      d1',
+      '  iPad mini  yesterday   5 min ago  d2-long-id',
+      '',
+      '  → actovia devices revoke <id>  to unpair one'
+    ])
   })
 
   test('revoke checks the id exists first', async () => {
@@ -168,7 +189,7 @@ describe('actovia devices', () => {
     const out = quiet()
     expect(await runDevicesRevoke('d1', { client, askPin: async () => '1', print: out.print })).toBe(true)
     expect(calls).toContain('revoke d1')
-    expect(out.lines).toEqual(['Revoked iPhone. It can no longer reach this computer.'])
+    expect(out.lines).toEqual(['✓ Revoked iPhone. It can no longer reach this computer.'])
 
     const original = console.error
     console.error = () => {}

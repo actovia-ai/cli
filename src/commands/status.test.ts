@@ -25,6 +25,7 @@ const snapshot = (over: Partial<Snapshot> = {}): Snapshot => ({
   latestDesktop: '2.2.0',
   cli: { updateAvailable: false, current: '2.3.0' },
   freeBytes: 50e9,
+  hostError: null,
   ...over
 })
 
@@ -58,6 +59,26 @@ describe('takeSnapshot', () => {
       })
     })
     expect(old.hostTooOld).toBe(true)
+  })
+
+  test('any other failure is not "too old": it is shown as the failure it is', async () => {
+    const s = await takeSnapshot({
+      ...rest,
+      client: clientAnswering(async () => {
+        throw new DesktopApiError('The request to http://127.0.0.1:60223 failed: 502 UNKNOWN_ERROR.', 502, 'UNKNOWN_ERROR')
+      })
+    })
+    expect(s.hostTooOld).toBe(false)
+    expect(s.hostError).toBe('The request to http://127.0.0.1:60223 failed: 502 UNKNOWN_ERROR.')
+    const checks = diagnose({ ...s, installed: { path: '/Applications/Actovia.app', version: '2.2.0' }, latestDesktop: '2.2.0' })
+    expect(checks.find(c => c.name === 'Running')).toMatchObject({
+      level: 'fail',
+      detail: 'no answer it could use: The request to http://127.0.0.1:60223 failed: 502 UNKNOWN_ERROR.'
+    })
+    expect(checks.find(c => c.group === 'app' && c.name === 'Version')?.detail).toBe('2.2.0 · up to date')
+    expect(formatStatus({ ...s, installed: { path: '/Applications/Actovia.app', version: '2.2.0' } })[0]).toBe(
+      '● Actovia 2.2.0  no answer it could use · The request to http://127.0.0.1:60223 failed: 502 UNKNOWN_ERROR.'
+    )
   })
 
   test('a part that fails leaves the others', async () => {
@@ -105,6 +126,13 @@ describe('actovia status', () => {
     expect(lines).toContain('  Data      /Users/me/.actovia · 50.0 GB free')
     expect(lines.at(-2)).toBe('')
     expect(lines.at(-1)).toBe('CLI 2.2.0 · 2.3.0 is out · actovia update')
+  })
+
+  test('an old build still running after a newer one was installed: said as that, not as a contradiction', () => {
+    const lines = formatStatus(
+      snapshot({ host: null, hostTooOld: true, installed: { path: '/Applications/Actovia.app', version: HOST_ROUTES_SINCE }, latestDesktop: HOST_ROUTES_SINCE })
+    )
+    expect(lines[0]).toBe(`● Actovia  running an older build than the installed ${HOST_ROUTES_SINCE} · actovia app restart`)
   })
 
   test('plain unless asked for colour: no escape anywhere', () => {

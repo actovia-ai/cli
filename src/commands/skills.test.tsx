@@ -116,3 +116,34 @@ describe('runSkillsInstall + runSkillsList + runSkillsUninstall', () => {
     detailSpy.mockRestore()
   })
 })
+
+describe('what the skills commands say', () => {
+  test('search: an aligned list with installs on the right; list: active marked', async () => {
+    const item = (id: string, installs: number) => ({ id, slug: id.split('/').at(-1)!, name: id, source: 'x', installs, sourceType: 'github', installUrl: '', url: '' })
+    const spy = spyOn(client, 'searchSkills').mockResolvedValue({
+      data: [item('expo/skills/react-native', 3842), item('a/b/c', 12)],
+      query: 'q',
+      searchType: 'semantic',
+      count: 2,
+      durationMs: 1
+    })
+    const lines: string[] = []
+    await runSkillsSearch('q', { print: t => lines.push(t) })
+    expect(lines).toEqual(['  expo/skills/react-native  3,842 installs', '  a/b/c                        12 installs'])
+
+    spy.mockResolvedValue({ data: [], query: 'q', searchType: 'semantic', count: 0, durationMs: 1 })
+    lines.length = 0
+    await runSkillsSearch('nothing', { print: t => lines.push(t) })
+    expect(lines).toEqual(['No skills match "nothing".'])
+    spy.mockRestore()
+
+    const listSpy = spyOn(store, 'listInstalledSkills').mockResolvedValue([
+      { slug: 'find-skills', isActive: true },
+      { slug: 'old-one', isActive: false }
+    ] as never)
+    lines.length = 0
+    await runSkillsList({ print: t => lines.push(t) })
+    expect(lines).toEqual(['  ● find-skills  active', '  ○ old-one      off'])
+    listSpy.mockRestore()
+  })
+})

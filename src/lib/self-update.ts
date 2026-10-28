@@ -4,6 +4,7 @@ import { chmod, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { download, type DownloadOptions } from './progress'
+import { colorEnabled, makeStyle } from './style'
 import { getLatestRelease, type GithubRelease, pickReleaseAssetName } from './updater'
 
 /**
@@ -40,6 +41,8 @@ export function installCommand(manager: PackageManager, version = 'latest'): str
   }
 }
 
+const dim = (s: string) => makeStyle(colorEnabled(process.stdout)).dim(s)
+
 export type Run = (command: string[]) => Promise<number>
 
 export const runInherited: Run = command =>
@@ -56,7 +59,7 @@ export async function updatePackage(
   const run = deps.run ?? runInherited
   const print = deps.print ?? console.log
   const command = installCommand(detectPackageManager(deps.entry), version)
-  print(`Running: ${command.join(' ')}`)
+  print(`  ${dim(`$ ${command.join(' ')}`)}`)
   const code = await run(command)
   if (code === 0) return true
   print(

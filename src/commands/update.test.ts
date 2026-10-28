@@ -61,3 +61,25 @@ describe('runUpdate', () => {
     spy.mockRestore()
   })
 })
+
+describe('what actovia update says', () => {
+  const lines: string[] = []
+  const print = (t: string) => lines.push(t)
+
+  test('up to date, out of date with the command, and the update done', async () => {
+    const spy = spyOn(updater, 'checkForUpdate').mockResolvedValue({ updateAvailable: false, current: '2.4.0' })
+    lines.length = 0
+    await runUpdate({ check: true }, { print })
+    expect(lines).toEqual(['✓ Actovia CLI 2.4.0 is up to date.'])
+
+    spy.mockResolvedValue({ updateAvailable: true, current: '2.3.1', latest: '2.4.0' })
+    lines.length = 0
+    await runUpdate({ check: true }, { print })
+    expect(lines).toEqual(['! Actovia CLI 2.4.0 is out (this is 2.3.1).', '  → actovia update'])
+
+    lines.length = 0
+    await runUpdate({}, { print, installPackage: async () => true })
+    expect(lines).toEqual(['! Actovia CLI 2.4.0 is out (this is 2.3.1).', '✓ Updated the CLI to 2.4.0.'])
+    spy.mockRestore()
+  })
+})

@@ -8,6 +8,8 @@ import {
   type PairingWindow
 } from '../lib/desktop-client'
 import { PinCancelled, promptPin } from '../lib/pin-prompt'
+import { withSpinner } from '../lib/spinner'
+import { ago, uiFor } from '../lib/ui'
 import { reportError } from './report-error'
 
 /**
@@ -23,6 +25,7 @@ export interface DeviceDeps {
   print?: (text: string) => void
   sleep?: (ms: number) => Promise<void>
   now?: () => number
+  color?: boolean
 }
 
 const defaults = (deps: DeviceDeps) => ({
@@ -30,7 +33,8 @@ const defaults = (deps: DeviceDeps) => ({
   askPin: deps.askPin ?? (() => promptPin()),
   print: deps.print ?? ((text: string) => console.log(text)),
   sleep: deps.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms))),
-  now: deps.now ?? Date.now
+  now: deps.now ?? Date.now,
+  ui: uiFor(deps)
 })
 
 /**
@@ -59,7 +63,7 @@ export async function runPair(
   opts: { invert?: boolean } = {},
   deps: DeviceDeps = {}
 ): Promise<PairOutcome> {
-  const { client, askPin, print, sleep, now } = defaults(deps)
+  const { client, askPin, print, sleep, now, ui } = defaults(deps)
   let window: PairingWindow | null = null
   // Whatever ends the wait short of a pairing — Ctrl-C, an error, the code
   // running out — closes the window on the computer too: none is left open.
@@ -73,26 +77,34 @@ export async function runPair(
     await client.authorize(askPin)
     const before = new Set((await client.devices()).devices.map(d => d.id))
     window = await client.openPairing()
+    const st = ui.st
     print(qrFor(window.link, opts.invert))
-    print(
-      'Scan this with the Actovia app on your iPhone: Settings → Computer → Scan pairing code' +
-        ' (or Pair another computer first, if the iPhone is paired with one already).'
-    )
-    print(`It works once and expires in ${Math.round((window.expiresAt - now()) / 1000)} seconds.\n`)
+    print(`  ${ui.title('Scan it with the Actovia app on your iPhone:')}`)
+    print('  Settings → Computer → Scan pairing code')
+    print(st.dim('  (Paired with another computer already? Pair another computer first.)'))
+    print('')
+    print(`  It works once and expires ${ago(window.expiresAt, now())}.`)
+    print('')
 
-    while (now() < window.expiresAt) {
-      await sleep(PAIR_POLL_MS)
-      const state: DevicesState = await client.devices()
-      const device = state.devices.find(d => !before.has(d.id))
-      if (device) {
-        print(`Paired ${printable(device.name)}.`)
-        return { status: 'paired', device }
+    const expiresAt = window.expiresAt
+    const device = await withSpinner('Waiting for the phone…', async () => {
+      while (now() < expiresAt) {
+        await sleep(PAIR_POLL_MS)
+        const state: DevicesState = await client.devices()
+        const found = state.devices.find(d => !before.has(d.id))
+        if (found) return found
+        // Closed on the computer (the Devices page) or used up without a new device.
+        if (!state.pairing) break
       }
-      // Closed on the computer (the Devices page) or used up without a new device.
-      if (!state.pairing) break
+      return null
+    })
+    if (device) {
+      print(ui.done(`Paired ${printable(device.name)}.`))
+      return { status: 'paired', device }
     }
     await close()
-    print('The pairing code expired. Run `actovia pair` for a new one.')
+    print(ui.fail('The pairing code expired.'))
+    print(ui.next('actovia pair'))
     process.exitCode = 1
     return { status: 'expired' }
   } catch (err) {
@@ -105,16 +117,11 @@ export async function runPair(
   }
 }
 
-function when(iso: string | null): string {
-  if (!iso) return 'never'
-  return new Date(iso).toLocaleString()
-}
-
 export async function runDevicesList(
   opts: { json?: boolean } = {},
   deps: DeviceDeps = {}
 ): Promise<PairedDevice[] | null> {
-  const { client, askPin, print } = defaults(deps)
+  const { client, askPin, print, now, ui } = defaults(deps)
   try {
     await client.authorize(askPin)
     const { devices, revoked = [] } = await client.devices()
@@ -122,19 +129,24 @@ export async function runDevicesList(
       print(JSON.stringify({ devices, revoked }, null, 2))
       return devices
     }
+    const t = now()
     if (devices.length === 0) {
-      print('No devices are paired. Pair one: actovia pair')
+      print('No devices paired yet.')
+      print(ui.next('actovia pair'))
     } else {
-      for (const d of devices) {
-        print(
-          `${printable(d.name)}\n  id ${printable(d.id)} · paired ${when(d.createdAt)} · last seen ${when(d.lastSeenAt)}`
-        )
-      }
+      print(ui.title('Paired devices'))
+      print('')
+      const rows = devices.map(d => [printable(d.name), ago(d.createdAt, t), ago(d.lastSeenAt, t), ui.st.dim(printable(d.id))])
+      for (const line of ui.table([['Name', 'Paired', 'Last seen', 'ID'], ...rows], { header: true })) print(line)
+      print('')
+      print(`${ui.next('actovia devices revoke <id>')}  ${ui.st.dim('to unpair one')}`)
     }
     // A phone revoked here still believes it is paired until it next connects.
     if (revoked.length > 0) {
-      print('\nRevoked, not told yet (each learns it the next time it connects):')
-      for (const r of revoked) print(`${printable(r.name ?? 'A device')}\n  revoked ${when(r.revokedAt)}`)
+      print('')
+      print(ui.title('Revoked, not told yet'))
+      for (const line of ui.table(revoked.map(r => [printable(r.name ?? 'A device'), `revoked ${ago(r.revokedAt, t)}`]))) print(line)
+      print(ui.st.dim('  Each learns it the next time it connects.'))
     }
     return devices
   } catch (err) {
@@ -145,7 +157,7 @@ export async function runDevicesList(
 }
 
 export async function runDevicesRevoke(id: string, deps: DeviceDeps = {}): Promise<boolean> {
-  const { client, askPin, print } = defaults(deps)
+  const { client, askPin, print, ui } = defaults(deps)
   try {
     await client.authorize(askPin)
     const { devices } = await client.devices()
@@ -155,7 +167,7 @@ export async function runDevicesRevoke(id: string, deps: DeviceDeps = {}): Promi
       return false
     }
     await client.revoke(id)
-    print(`Revoked ${printable(device.name)}. It can no longer reach this computer.`)
+    print(ui.done(`Revoked ${printable(device.name)}. It can no longer reach this computer.`))
     return true
   } catch (err) {
     if (!(err instanceof PinCancelled)) reportError(err)

@@ -11,6 +11,7 @@ import {
 import { DesktopClient } from '../lib/desktop-client'
 import { PinCancelled, promptPin } from '../lib/pin-prompt'
 import { ensurePass } from '../lib/session'
+import { uiFor } from '../lib/ui'
 import { isNewerVersion } from '../lib/updater'
 import { runOpen } from './open'
 import { reportError } from './report-error'
@@ -25,12 +26,14 @@ export interface AppDeps {
   client?: DesktopClient
   askPin?: () => Promise<string>
   print?: (text: string) => void
+  color?: boolean
 }
 
 const defaults = (deps: AppDeps) => ({
   client: deps.client ?? new DesktopClient(),
   askPin: deps.askPin ?? (() => promptPin()),
-  print: deps.print ?? ((text: string) => console.log(text))
+  print: deps.print ?? ((text: string) => console.log(text)),
+  ui: uiFor(deps)
 })
 
 function fail(err: unknown, json?: boolean): void {
@@ -49,7 +52,7 @@ export async function runAppCheck(
   opts: { json?: boolean } = {},
   deps: AppDeps & { installedVersion?: () => Promise<string | null>; latest?: () => Promise<string> } = {}
 ): Promise<AppCheck | null> {
-  const { client, print } = defaults(deps)
+  const { client, print, ui } = defaults(deps)
   try {
     const installedVersion =
       deps.installedVersion ??
@@ -68,9 +71,13 @@ export async function runAppCheck(
     const current = running ?? installed
     const result = { current, latest, updateAvailable: current !== null && isNewerVersion(current, latest) }
     if (opts.json) print(JSON.stringify(result))
-    else if (current === null) print(`Actovia ${latest} is the latest; none is installed here (${DESKTOP_RELEASES_URL}).`)
-    else if (result.updateAvailable) print(`Actovia ${latest} is out (this is ${current}). Install it: actovia app update`)
-    else print(`Actovia ${current} is up to date.`)
+    else if (current === null) {
+      print(`Actovia ${latest} is the latest; none is installed here.`)
+      print(ui.next(DESKTOP_RELEASES_URL))
+    } else if (result.updateAvailable) {
+      print(ui.warn(`Actovia ${latest} is out (this is ${current}).`))
+      print(ui.next('actovia app update'))
+    } else print(ui.done(`Actovia ${current} is up to date.`))
     return result
   } catch (err) {
     fail(err, opts.json)
@@ -79,21 +86,20 @@ export async function runAppCheck(
 }
 
 export async function runAppUpdate(deps: AppDeps = {}): Promise<boolean> {
-  const { client, askPin, print } = defaults(deps)
+  const { client, askPin, print, ui } = defaults(deps)
   try {
     const result = await updateDesktopApp({ client, askPin, print })
     if (result.status === 'current') {
-      print(`Actovia ${result.version} is up to date.`)
+      print(ui.done(`Actovia ${result.version} is up to date.`))
       return true
     }
-    print(`Updated Actovia ${result.from ?? ''}${result.from ? ' → ' : ''}${result.to}.`)
+    print(ui.done(`Updated Actovia ${result.from ?? ''}${result.from ? ' → ' : ''}${result.to}.`))
     if (result.relaunched) {
       // Until the builds are signed, every new version is a new app to the
       // Keychain; nothing can answer that dialog from here.
-      print(
-        'Reopened it. macOS asks once for the login password to let the new version read its keychain item ' +
-          '("Actovia Safe Storage"); until someone allows it at the screen, the app waits at that prompt.'
-      )
+      print(ui.done('Reopened it.'))
+      print(ui.warn('macOS asks once for the login password, so the new version can read its keychain item'))
+      print(ui.st.dim('  ("Actovia Safe Storage"). Until someone allows it at the screen, the app waits at that prompt.'))
     }
     return true
   } catch (err) {
@@ -103,12 +109,12 @@ export async function runAppUpdate(deps: AppDeps = {}): Promise<boolean> {
 }
 
 async function runAppAction(action: 'quit' | 'restart', deps: AppDeps = {}): Promise<boolean> {
-  const { client, askPin, print } = defaults(deps)
+  const { client, askPin, print, ui } = defaults(deps)
   try {
     await ensurePass(client, askPin)
     if (action === 'quit') await client.quit()
     else await client.restart()
-    print(action === 'quit' ? 'Actovia is quitting.' : 'Actovia is restarting.')
+    print(ui.done(action === 'quit' ? 'Actovia is quitting.' : 'Actovia is restarting.'))
     return true
   } catch (err) {
     fail(err)

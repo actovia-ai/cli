@@ -12,12 +12,18 @@ import {
 } from '../lib/skills-store'
 import { getUpdateBadge } from '../lib/update-notifier'
 import { App } from '../tui/app'
+import { uiFor } from '../lib/ui'
+import { printable } from './devices'
 import { reportError } from './report-error'
 
 interface JsonOpt {
   json?: boolean
   skillsDir?: string
+  print?: (text: string) => void
+  color?: boolean
 }
+
+const printer = (opts: JsonOpt) => opts.print ?? ((text: string) => console.log(text))
 
 export async function runSkillsSearch(
   query: string,
@@ -25,12 +31,15 @@ export async function runSkillsSearch(
 ): Promise<SkillListItem[]> {
   try {
     const { data } = await searchSkills(query)
+    const print = printer(opts)
+    const ui = uiFor(opts)
     if (opts.json) {
-      console.log(JSON.stringify(data, null, 2))
+      print(JSON.stringify(data, null, 2))
+    } else if (data.length === 0) {
+      print(`No skills match "${printable(query)}".`)
     } else {
-      for (const item of data) {
-        console.log(`${item.id}  (${item.installs.toLocaleString()} installs)`)
-      }
+      const rows = data.map(item => [printable(item.id), ui.st.dim(`${item.installs.toLocaleString('en-US')} installs`)])
+      for (const line of ui.table(rows, { right: [1] })) print(line)
     }
     return data
   } catch (err) {
@@ -47,9 +56,9 @@ export async function runSkillsInstall(
     const detail = await getSkillDetail(id)
     const installed = await installSkill(opts.skillsDir ?? getSkillsDir(), detail)
     if (opts.json) {
-      console.log(JSON.stringify(installed, null, 2))
+      printer(opts)(JSON.stringify(installed, null, 2))
     } else {
-      console.log(`Installed "${installed.displayName}" (${installed.slug}).`)
+      printer(opts)(uiFor(opts).done(`Installed ${printable(installed.displayName)} (${printable(installed.slug)}).`))
     }
     return installed
   } catch (err) {
@@ -61,14 +70,20 @@ export async function runSkillsInstall(
 export async function runSkillsList(opts: JsonOpt = {}): Promise<InstalledSkill[]> {
   try {
     const installed = await listInstalledSkills(opts.skillsDir ?? getSkillsDir())
+    const print = printer(opts)
+    const ui = uiFor(opts)
     if (opts.json) {
-      console.log(JSON.stringify(installed, null, 2))
+      print(JSON.stringify(installed, null, 2))
     } else if (installed.length === 0) {
-      console.log('No skills installed.')
+      print('No skills installed.')
+      print(ui.next('actovia skills'))
     } else {
-      for (const skill of installed) {
-        console.log(`${skill.slug}  ${skill.isActive ? '(active)' : '(inactive)'}`)
-      }
+      const rows = installed.map(skill =>
+        skill.isActive
+          ? [`${ui.st.green('●')} ${printable(skill.slug)}`, 'active']
+          : [ui.st.dim(`○ ${printable(skill.slug)}`), ui.st.dim('off')]
+      )
+      for (const line of ui.table(rows)) print(line)
     }
     return installed
   } catch (err) {
@@ -80,7 +95,7 @@ export async function runSkillsList(opts: JsonOpt = {}): Promise<InstalledSkill[
 export async function runSkillsUninstall(slug: string, opts: JsonOpt = {}): Promise<void> {
   try {
     await uninstallSkill(opts.skillsDir ?? getSkillsDir(), slug)
-    if (!opts.json) console.log(`Uninstalled ${slug}.`)
+    if (!opts.json) printer(opts)(uiFor(opts).done(`Uninstalled ${printable(slug)}.`))
   } catch (err) {
     reportError(err, opts.json)
   }

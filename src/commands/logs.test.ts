@@ -28,6 +28,13 @@ describe('actovia logs', () => {
     expect(text).toContain('\n    Error: x\n      at f (src/a.ts:1:2)')
   })
 
+  test('in colour, the level tells itself apart and the text is unchanged', () => {
+    const e = entry('2026-10-21T01:00:00Z', 'boom', { severityText: 'ERROR' })
+    const colored = formatEntry(e, true)
+    expect(colored).toContain('\x1b[31m')
+    expect(colored.replace(/\x1b\[[0-9;]*m/g, '')).toBe(formatEntry(e))
+  })
+
   test('prints oldest first, then only what is new while following', async () => {
     const pages = [
       [entry('T2', 'two'), entry('T1', 'one')],

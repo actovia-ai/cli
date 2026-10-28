@@ -141,7 +141,7 @@ export class DesktopApiError extends Error {
 }
 
 /** What a person reads for each refusal the desktop answers with. */
-function messageFor(status: number, code: string, retryAfterMs: number): string {
+function messageFor(status: number, code: string, retryAfterMs: number, url: string): string {
   switch (code) {
     case 'WRONG_PIN':
       return 'Wrong PIN.'
@@ -159,7 +159,7 @@ function messageFor(status: number, code: string, retryAfterMs: number): string 
       // A route this Actovia does not have: it is older than the CLI.
       if (status === 404)
         return 'This Actovia is too old for this command. Update it (Settings → About, or download the latest from https://github.com/actovia-ai/actovia/releases/latest), then try again.'
-      return `Actovia answered ${status} ${code}.`
+      return `The request to ${url} failed: ${status} ${code}.`
   }
 }
 
@@ -207,7 +207,7 @@ export class DesktopClient {
     if (!res.ok) {
       const code = data?.error?.code ?? 'UNKNOWN_ERROR'
       const retryAfterMs = data?.error?.retryAfterMs ?? 0
-      throw new DesktopApiError(messageFor(res.status, code, retryAfterMs), res.status, code, retryAfterMs)
+      throw new DesktopApiError(messageFor(res.status, code, retryAfterMs, this.baseUrl.replace(/\/$/, '')), res.status, code, retryAfterMs)
     }
     return data as T
   }

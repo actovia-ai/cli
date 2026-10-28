@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 
 import { getActoviaHome } from './paths'
+import { colorEnabled, makeStyle } from './style'
 import { getCurrentVersion, getLatestVersion, isNewerVersion } from './updater'
 
 const CACHE_FILE = 'update-check.json'
@@ -53,9 +54,10 @@ export function isCacheStale(cache: UpdateCache | null, now: number = Date.now()
   return age < 0 || age >= CHECK_INTERVAL_MS
 }
 
-export function getUpdateNotice(current: string, cache: UpdateCache | null): string | null {
+export function getUpdateNotice(current: string, cache: UpdateCache | null, color = false): string | null {
   if (!cache || !isNewerVersion(current, cache.latest)) return null
-  return `Update available: ${current} → ${cache.latest}. Run: actovia update`
+  const st = makeStyle(color)
+  return `${st.yellow('!')} Actovia CLI ${cache.latest} is out (this is ${current}) ${st.dim('·')} ${st.cyan('actovia update')}`
 }
 
 /** The compact form shown inside the TUI tab bar, where space is tight. */
@@ -141,5 +143,5 @@ export async function prepareUpdateNotice(
     }
   }
 
-  return getUpdateNotice(current, cache)
+  return getUpdateNotice(current, cache, colorEnabled(process.stderr))
 }

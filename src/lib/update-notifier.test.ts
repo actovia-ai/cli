@@ -96,6 +96,12 @@ describe('getUpdateNotice', () => {
     expect(notice).toContain('1.2.0')
   })
 
+  test('reads like the other commands: a warning mark, both versions, the command', () => {
+    expect(getUpdateNotice('1.0.0', { checkedAt: 0, latest: '1.2.0' })).toBe('! Actovia CLI 1.2.0 is out (this is 1.0.0) · actovia update')
+    const colored = getUpdateNotice('1.0.0', { checkedAt: 0, latest: '1.2.0' }, true)!
+    expect(colored.replace(/\x1b\[[0-9;]*m/g, '')).toBe('! Actovia CLI 1.2.0 is out (this is 1.0.0) · actovia update')
+  })
+
   test('tells the user how to upgrade', () => {
     const notice = getUpdateNotice('1.0.0', { checkedAt: 0, latest: '1.2.0' })
     expect(notice).toContain('actovia update')

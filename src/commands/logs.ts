@@ -3,6 +3,7 @@ import type { Command } from 'commander'
 import { DesktopClient, type LogEntry, type LogQuery } from '../lib/desktop-client'
 import { PinCancelled, promptPin } from '../lib/pin-prompt'
 import { whileUnlocked } from '../lib/session'
+import { colorEnabled, makeStyle } from '../lib/style'
 import { reportError } from './report-error'
 
 /**
@@ -28,6 +29,7 @@ export interface LogsDeps {
   sleep?: (ms: number) => Promise<void>
   /** Stops `--follow` (tests); runs until interrupted otherwise. */
   keepFollowing?: () => boolean
+  color?: boolean
 }
 
 /** How often `--follow` asks for new lines. */
@@ -39,13 +41,16 @@ const LEVELS = ['debug', 'info', 'warn', 'error']
 // sent: control characters are shown, never obeyed (as with device names).
 const clean = (text: string) => text.replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/gu, '?')
 
-export function formatEntry(e: LogEntry): string {
-  const time = new Date(e.timestamp).toLocaleTimeString()
-  const level = clean(e.severityText).padEnd(5)
-  const trace = e.traceId ? `  trace:${clean(e.traceId.slice(0, 8))}` : ''
-  const lines = [`${time} ${level} ${clean(e.scope.name)}  ${clean(e.body)}${trace}`]
+export function formatEntry(e: LogEntry, color = false): string {
+  const st = makeStyle(color)
+  const time = st.dim(new Date(e.timestamp).toLocaleTimeString())
+  const severity = clean(e.severityText)
+  const tint = { ERROR: st.red, FATAL: st.red, WARN: st.yellow, DEBUG: st.dim }[severity.toUpperCase()] ?? ((s: string) => s)
+  const level = tint(severity.padEnd(5))
+  const trace = e.traceId ? st.dim(`  trace:${clean(e.traceId.slice(0, 8))}`) : ''
+  const lines = [`${time} ${level} ${st.cyan(clean(e.scope.name))}  ${clean(e.body)}${trace}`]
   const stack = e.attributes['exception.stacktrace']
-  if (typeof stack === 'string') lines.push(...clean(stack).split('\n').map(l => `    ${l}`))
+  if (typeof stack === 'string') lines.push(...clean(stack).split('\n').map(l => st.dim(`    ${l}`)))
   return lines.join('\n')
 }
 
@@ -58,7 +63,9 @@ export async function runLogs(opts: LogsOptions = {}, deps: LogsDeps = {}): Prom
   const print = deps.print ?? ((text: string) => console.log(text))
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
   const keepFollowing = deps.keepFollowing ?? (() => true)
-  const emit = (e: LogEntry) => print(opts.json ? JSON.stringify(e) : formatEntry(e))
+  // A test's own print gets plain text unless it asks for colour.
+  const color = deps.color ?? (deps.print ? false : colorEnabled(process.stdout))
+  const emit = (e: LogEntry) => print(opts.json ? JSON.stringify(e) : formatEntry(e, color))
   try {
     if (opts.level && !LEVELS.includes(opts.level)) throw new Error(`--level is one of ${LEVELS.join(', ')}.`)
     if (opts.date && !/^\d{4}-\d{2}-\d{2}$/u.test(opts.date)) throw new Error('--date is YYYY-MM-DD.')

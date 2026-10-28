@@ -20,8 +20,10 @@ import { printable } from './devices'
 export interface Snapshot {
   /** The running app's own answer; null when nothing answered. */
   host: HostStatus | null
-  /** Something answered, but it is an Actovia older than the status route. */
+  /** Something answered, but it is an Actovia older than the status route (a 404). */
   hostTooOld: boolean
+  /** The request failed some other way: what went wrong, as said. Never read as "too old". */
+  hostError: string | null
   installed: { path: string; version: string | null } | null
   latestDesktop: string | null
   cli: UpdateCheckResult | null
@@ -57,11 +59,14 @@ export async function takeSnapshot(deps: SnapshotDeps = {}): Promise<Snapshot> {
   const client = deps.client ?? new DesktopClient()
   const [hostResult, installed, latestDesktop, cli] = await Promise.all([
     client.hostStatus().then(
-      host => ({ host, tooOld: false }),
-      (err: unknown) => ({
-        host: null,
-        tooOld: err instanceof DesktopApiError && err.code !== 'UNREACHABLE'
-      })
+      host => ({ host, tooOld: false, error: null }),
+      (err: unknown) => {
+        const answered = err instanceof DesktopApiError && err.code !== 'UNREACHABLE'
+        // Only a missing route means an older Actovia; anything else is a
+        // failure to show as it is.
+        const tooOld = answered && err.status === 404
+        return { host: null, tooOld, error: answered && !tooOld ? err.message : null }
+      }
     ),
     (deps.installed ?? localInstall)().catch(() => null),
     (deps.latestDesktop ?? (async () => versionOf(await latestDesktopRelease())))().catch(() => null),
@@ -69,7 +74,7 @@ export async function takeSnapshot(deps: SnapshotDeps = {}): Promise<Snapshot> {
   ])
   const dataDir = hostResult.host?.dataDir ?? join(homedir(), '.actovia')
   const freeBytes = await (deps.freeBytes ?? freeOn)(dataDir)
-  return { host: hostResult.host, hostTooOld: hostResult.tooOld, installed, latestDesktop, cli, freeBytes }
+  return { host: hostResult.host, hostTooOld: hostResult.tooOld, hostError: hostResult.error, installed, latestDesktop, cli, freeBytes }
 }
 
 const gb = (bytes: number) => `${(bytes / 1e9).toFixed(1)} GB`
@@ -79,6 +84,14 @@ function since(iso: string): string {
   if (minutes < 60) return `${minutes} min`
   if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h`
   return `${Math.round(minutes / 1440)} days`
+}
+
+/**
+ * Too old to answer, yet the installed app is new enough: what runs is an
+ * older build that was never restarted after an update.
+ */
+function staleProcess(s: Snapshot): boolean {
+  return Boolean(s.hostTooOld && s.installed?.version && !isNewerVersion(s.installed.version, HOST_ROUTES_SINCE))
 }
 
 /** The desktop version this machine has: the running app's, else the installed one's. */
@@ -114,17 +127,23 @@ export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
     const state = h.locked ? st.yellow('locked') : st.green('unlocked')
     const dot = h.locked ? st.yellow('●') : st.green('●')
     lines.push(`${dot} ${name}  ${st.green('running')} ${st.dim('·')} ${state} ${st.dim(`· up ${since(h.startedAt)}`)}`)
+  } else if (s.hostError) {
+    lines.push(`${st.red('●')} ${name}  ${st.red('no answer it could use')} ${st.dim(`· ${p(s.hostError)}`)}`)
+  } else if (staleProcess(s)) {
+    lines.push(
+      `${st.yellow('●')} ${st.bold('Actovia')}  ${st.yellow(`running an older build than the installed ${p(s.installed?.version ?? '')}`)} ${st.dim('·')} ${st.cyan('actovia app restart')}`
+    )
   } else if (s.hostTooOld) {
     lines.push(`${st.yellow('●')} ${name}  ${st.yellow('running')} ${st.dim(`· update it to ${HOST_ROUTES_SINCE} or later for its status`)}`)
   } else if (s.installed) {
-    lines.push(`${st.red('●')} ${name}  ${st.red('not running')} ${st.dim('· actovia open')}`)
+    lines.push(`${st.red('●')} ${name}  ${st.red('not running')} ${st.dim('·')} ${st.cyan('actovia open')}`)
   } else {
     lines.push(`${st.red('●')} ${name}  ${st.red('not running here')}`)
   }
 
   const rows: [label: string, value: string][] = []
   if (version && s.latestDesktop && isNewerVersion(version, s.latestDesktop)) {
-    rows.push(['Update', `${st.yellow(`${p(s.latestDesktop)} is out`)} ${st.dim('· actovia app update')}`])
+    rows.push(['Update', `${st.yellow(`${p(s.latestDesktop)} is out`)} ${st.dim('·')} ${st.cyan('actovia app update')}`])
   }
   if (s.host) {
     const h = s.host
@@ -145,7 +164,7 @@ export function formatStatus(s: Snapshot, opts: FormatOptions = {}): string[] {
 
   const cli = s.cli
     ? s.cli.updateAvailable
-      ? `${st.dim(`CLI ${p(s.cli.current)} ·`)} ${st.yellow(`${p(s.cli.latest)} is out`)} ${st.dim('· actovia update')}`
+      ? `${st.dim(`CLI ${p(s.cli.current)} ·`)} ${st.yellow(`${p(s.cli.latest)} is out`)} ${st.dim('·')} ${st.cyan('actovia update')}`
       : st.dim(`CLI ${p(s.cli.current)}`)
     : st.dim(`CLI ${getCurrentVersion()}`)
   lines.push('', cli)
@@ -195,17 +214,15 @@ export function diagnose(s: Snapshot): Check[] {
     else add('app', 'fail', 'Installed', 'not in /Applications', 'https://actovia.yancey.app')
   }
 
-  // Too old to answer, yet the installed app is new enough: what runs is an
-  // older build that was never restarted after an update.
-  const staleProcess = Boolean(s.hostTooOld && s.installed?.version && !isNewerVersion(s.installed.version, HOST_ROUTES_SINCE))
+  const stale = staleProcess(s)
   const outOfDate = Boolean(version && s.latestDesktop && isNewerVersion(version, s.latestDesktop))
   if (version || s.hostTooOld) {
     const parts = [version ?? `older than ${HOST_ROUTES_SINCE}`]
     if (outOfDate) parts.push(`${s.latestDesktop} is out`)
     else if (version && s.latestDesktop) parts.push('up to date')
     let detail = parts.join(' · ')
-    if (s.hostTooOld && !staleProcess && version) detail += `; the CLI needs ${HOST_ROUTES_SINCE} or later to read it`
-    if (outOfDate || (s.hostTooOld && !staleProcess)) add('app', 'warn', 'Version', detail, 'actovia app update')
+    if (s.hostTooOld && !stale && version) detail += `; the CLI needs ${HOST_ROUTES_SINCE} or later to read it`
+    if (outOfDate || (s.hostTooOld && !stale)) add('app', 'warn', 'Version', detail, 'actovia app update')
     else add('app', 'ok', 'Version', detail)
   }
 
@@ -215,7 +232,9 @@ export function diagnose(s: Snapshot): Check[] {
       add('app', 'warn', 'Running', `${h.version}, not the installed ${s.installed.version}`, 'actovia app restart')
     } else add('app', 'ok', 'Running', state)
     if (h.update.state === 'error') add('app', 'warn', 'Updater', "the app's own update check failed", 'actovia app check')
-  } else if (staleProcess) {
+  } else if (s.hostError) {
+    add('app', 'fail', 'Running', `no answer it could use: ${s.hostError}`)
+  } else if (stale) {
     const detail = `an Actovia older than the installed ${s.installed?.version}`
     if (outOfDate) add('app', 'warn', 'Running', `${detail} · the update restarts it`)
     else add('app', 'warn', 'Running', detail, 'actovia app restart')

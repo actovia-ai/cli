@@ -198,7 +198,7 @@ async function quitRunningApp(
 ): Promise<boolean> {
   const { client, askPin, print, run, sleep } = deps
   if (!(await isAppRunning(appPath, run))) return false
-  print('Quitting Actovia…')
+  print('Quitting Actovia so it can be replaced…')
   try {
     await ensurePass(client, askPin)
     await client.quit()
