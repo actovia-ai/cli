@@ -1,3 +1,15 @@
+# [2.6.0](https://github.com/actovia-ai/cli/compare/v2.5.0...v2.6.0) (2026-10-29)
+
+
+### Bug Fixes
+
+* **app:** warn about the Keychain prompt only when replacing an unsigned build (ISSUE-290) ([fc9ed3a](https://github.com/actovia-ai/cli/commit/fc9ed3abf6c2226dea677f024d239bacde5b740b))
+
+
+### Features
+
+* **app:** update the desktop app by downloading only the blocks that changed (ISSUE-290) ([7316d01](https://github.com/actovia-ai/cli/commit/7316d01e3ccbee23c81bd8d22d429f8a7753587c))
+
 # [2.5.0](https://github.com/actovia-ai/cli/compare/v2.4.0...v2.5.0) (2026-10-28)
 
 
