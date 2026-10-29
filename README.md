@@ -75,7 +75,10 @@ downloaded (three tries), and a zip that passed its checksum is kept at once,
 so a run that could not swap the app does not download it again. If the
 running app has already downloaded that version itself (Settings → About says
 "Update ready to install"), `app update` asks it to install its own and waits
-for it to come back, instead of downloading a second copy.
+for it to come back, instead of downloading a second copy. An Actovia too old
+to be asked (before 2.6.0) still lends its download: the zip its updater left
+in `~/Library/Caches/actovia-updater/pending/` (or `update.zip` beside it) is used when it matches the
+release's `SHA256SUMS`, and it is signature-checked like any other.
 
 Skills install into `~/.actovia/skills/<slug>/`, the same directory
 the Actovia desktop app reads — a skill installed via

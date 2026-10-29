@@ -78,7 +78,11 @@ const quietClient = (calls: string[] = []) => {
 
 const scratchCaches = async () => {
   const dir = await mkdtemp(join(tmpdir(), 'actovia-caches-'))
-  return { cacheDir: join(dir, 'actovia-cli', 'desktop'), updaterCacheZip: join(dir, 'actovia-updater', 'update.zip') }
+  return {
+    cacheDir: join(dir, 'actovia-cli', 'desktop'),
+    updaterCacheZip: join(dir, 'actovia-updater', 'update.zip'),
+    updaterPendingDir: join(dir, 'actovia-updater', 'pending')
+  }
 }
 const base = {
   askPin: async () => '1234',
@@ -325,6 +329,130 @@ describe('actovia app update', () => {
       const result = await updateDesktopApp({ ...base, client, run, appPath, release: release(), fetch: fetchFor(`${sum}  ${zipName}\n`) })
       expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
     }
+  })
+
+  test('the status is read once the PIN is in: an app that restarted meanwhile is asked, not the one that quit', async () => {
+    const { appPath } = await installed()
+    const calls: string[] = []
+    const client = {
+      authorized: false,
+      hostStatus: async () => {
+        calls.push('hostStatus')
+        return { update: { mode: 'auto', state: 'idle', availableVersion: null } }
+      },
+      authorize: async () => {
+        calls.push('authorize')
+        client.authorized = true
+      },
+      installUpdate: async () => calls.push('installUpdate'),
+      quit: async () => calls.push('quit')
+    }
+    await updateDesktopApp({
+      ...base,
+      client: client as unknown as DesktopClient,
+      run: fakeRun({ running: 3 }).run,
+      appPath,
+      release: release(),
+      fetch: fetchFor(`${sum}  ${zipName}\n`)
+    })
+    expect(calls.slice(0, 2)).toEqual(['authorize', 'hostStatus'])
+    expect(calls).not.toContain('installUpdate')
+  })
+
+  test('an app that installed the update itself while the PIN was typed: 409, and it is already there', async () => {
+    const { appPath } = await installed()
+    let checks = 0
+    // Read 2.1.0 before the PIN, 2.2.0 once the app has put its update in.
+    const { run } = fakeRun({ running: 1, version: () => (checks++ === 0 ? '2.1.0' : '2.2.0') })
+    const client = {
+      authorized: false,
+      hostStatus: async () => ({ update: { mode: 'auto', state: 'ready', availableVersion: '2.2.0' } }),
+      authorize: async () => {},
+      installUpdate: async () => {
+        throw new DesktopApiError('not ready', 409, 'UPDATE_NOT_READY')
+      }
+    } as unknown as DesktopClient
+    const fetchNever = (async () => {
+      throw new Error('fetched')
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({ ...base, client, run, appPath, release: release(), fetch: fetchNever })
+    expect(result).toEqual({ status: 'handed-off', from: '2.1.0', to: '2.2.0' })
+  })
+
+  test('409 on an app still on the old version: it is downloaded and swapped as before', async () => {
+    const { appPath } = await installed()
+    const client = {
+      authorized: false,
+      hostStatus: async () => ({ update: { mode: 'auto', state: 'ready', availableVersion: '2.2.0' } }),
+      authorize: async () => {},
+      installUpdate: async () => {
+        throw new DesktopApiError('not ready', 409, 'UPDATE_NOT_READY')
+      },
+      quit: async () => {}
+    } as unknown as DesktopClient
+    const result = await updateDesktopApp({
+      ...base,
+      client,
+      run: fakeRun({ running: 3 }).run,
+      appPath,
+      release: release(),
+      fetch: fetchFor(`${sum}  ${zipName}\n`)
+    })
+    expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+  })
+
+  test("the zip Actovia's own updater downloaded is used, and it says so", async () => {
+    const { appPath } = await installed()
+    await mkdir(base.updaterPendingDir, { recursive: true })
+    await writeFile(join(base.updaterPendingDir, zipName), zip)
+    const printed: string[] = []
+    const fetched: string[] = []
+    const fetchSumsOnly = (async (url: string) => {
+      fetched.push(url)
+      if (url === 'https://x/sums') return new Response(`${sum}  ${zipName}\n`)
+      throw new Error('downloaded the zip')
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({
+      ...base,
+      print: text => printed.push(text),
+      client: quietClient(),
+      run: fakeRun().run,
+      appPath,
+      release: release(),
+      fetch: fetchSumsOnly
+    })
+    expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+    expect(fetched).toEqual(['https://x/sums'])
+    expect(printed.join('\n')).toContain('Found Actovia 2.2.0 already downloaded by the app; nothing to download.')
+  })
+
+  test("so is its update.zip, once the app has copied the new version there", async () => {
+    const { appPath } = await installed()
+    await mkdir(join(base.updaterCacheZip, '..'), { recursive: true })
+    await writeFile(base.updaterCacheZip, zip)
+    const fetched: string[] = []
+    const fetchSumsOnly = (async (url: string) => {
+      fetched.push(url)
+      if (url === 'https://x/sums') return new Response(`${sum}  ${zipName}\n`)
+      throw new Error('downloaded the zip')
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({ ...base, client: quietClient(), run: fakeRun().run, appPath, release: release(), fetch: fetchSumsOnly })
+    expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+    expect(fetched).toEqual(['https://x/sums'])
+  })
+
+  test("a zip in the updater's folder that is not the release's is ignored", async () => {
+    const { appPath } = await installed()
+    await mkdir(base.updaterPendingDir, { recursive: true })
+    await writeFile(join(base.updaterPendingDir, zipName), 'tampered')
+    const fetched: string[] = []
+    const fetchAll = (async (url: string) => {
+      fetched.push(url)
+      return url === 'https://x/sums' ? new Response(`${sum}  ${zipName}\n`) : new Response(zip)
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({ ...base, client: quietClient(), run: fakeRun().run, appPath, release: release(), fetch: fetchAll })
+    expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+    expect(fetched).toContain('https://x/zip')
   })
 
   test('elsewhere it says where the update comes from', async () => {

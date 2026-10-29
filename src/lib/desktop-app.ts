@@ -92,10 +92,13 @@ export interface DesktopUpdateDeps {
   cacheDir?: string
   /** electron-updater's copy of the zip it last downloaded, when the app updated itself. */
   updaterCacheZip?: string
+  /** Where Actovia's own updater leaves a downloaded update (`pending/<zip>`). */
+  updaterPendingDir?: string
 }
 
 const defaultCacheDir = () => join(homedir(), 'Library', 'Caches', 'actovia-cli', 'desktop')
 const defaultUpdaterCacheZip = () => join(homedir(), 'Library', 'Caches', 'actovia-updater', 'update.zip')
+const defaultUpdaterPendingDir = () => join(homedir(), 'Library', 'Caches', 'actovia-updater', 'pending')
 
 export type DesktopUpdateResult =
   | { status: 'current'; version: string }
@@ -157,19 +160,23 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
   // now: a typo then costs nothing, not a download thrown away. And an app
   // that already holds this version (its own updater downloaded it) is asked
   // to install that — two installers racing for one bundle is the alternative.
+  // Its state is read after the PIN: while it is typed the app may restart
+  // into the update by itself.
   let viaDock = false
   if (await isAppRunning(appPath, run)) {
-    const status = await client.hostStatus().catch(() => null)
-    const ready = status?.update?.state === 'ready' && status.update.availableVersion === latest
     try {
       await ensurePass(client, askPin)
     } catch (err) {
       if (!quitsLikeTheDock(err)) throw err
       viaDock = true
     }
-    if (ready && !viaDock && (await handOff(appPath, latest, { client, print, run, sleep, timeoutMs: deps.installTimeoutMs }))) {
+    const status = viaDock ? null : await client.hostStatus().catch(() => null)
+    const ready = status?.update?.state === 'ready' && status.update.availableVersion === latest
+    if (ready && (await handOff(appPath, latest, { client, print, run, sleep, timeoutMs: deps.installTimeoutMs }))) {
       return { status: 'handed-off', from: current, to: latest }
     }
+    // It installed the update itself in the meantime.
+    if (ready && (await appVersion(appPath, run)) === latest) return { status: 'handed-off', from: current, to: latest }
   }
 
   const sums = await fetchImpl(sumsAsset.browser_download_url)
@@ -183,6 +190,13 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
   // kept; otherwise (or if that fails) the whole zip, as before.
   let bytes: Buffer | null = await readKept(join(cacheDir, name), matches)
   if (bytes) print(`Using the ${label} downloaded before.`)
+  // Or the one Actovia's own updater downloaded, checked the same way.
+  // (it leaves it in pending/, and copies it to update.zip once downloaded).
+  for (const path of [join(deps.updaterPendingDir ?? defaultUpdaterPendingDir(), name), deps.updaterCacheZip ?? defaultUpdaterCacheZip()]) {
+    if (bytes) break
+    bytes = await readKept(path, matches)
+    if (bytes) print(`Found ${label} already downloaded by the app; nothing to download.`)
+  }
   const oldName = current ? desktopZipName(current, arch) : null
   const blockmap = release.assets.find(a => a.name === `${name}.blockmap`)
   const tagSuffix = `/${release.tag_name}/${name}`
@@ -356,7 +370,9 @@ async function handOff(
   try {
     await client.installUpdate()
   } catch (err) {
-    if (err instanceof DesktopApiError && err.status === 404) return false
+    // No such route (older than 2.6.0), or nothing waiting: it restarted
+    // into the update, or dropped it, while the PIN was typed.
+    if (err instanceof DesktopApiError && (err.status === 404 || err.code === 'UPDATE_NOT_READY')) return false
     throw err
   }
   print(`Actovia had already downloaded ${latest}; it is installing it and will reopen…`)
