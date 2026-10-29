@@ -1,3 +1,15 @@
+# [2.7.0](https://github.com/actovia-ai/cli/compare/v2.6.0...v2.7.0) (2026-10-29)
+
+
+### Bug Fixes
+
+* **cli:** a star per PIN digit, and three tries before giving up ([c6499d5](https://github.com/actovia-ai/cli/commit/c6499d5bb4bcf43a547b959d62f8fb28502474cb))
+
+
+### Features
+
+* **app:** ask the PIN before downloading, keep a checked zip, and let a ready app install its own update ([1012cc6](https://github.com/actovia-ai/cli/commit/1012cc60d34559564544c4153ec2d00268f02da4))
+
 # [2.6.0](https://github.com/actovia-ai/cli/compare/v2.5.0...v2.6.0) (2026-10-29)
 
 
