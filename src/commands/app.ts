@@ -93,6 +93,10 @@ export async function runAppUpdate(deps: AppDeps = {}): Promise<boolean> {
       print(ui.done(`Actovia ${result.version} is up to date.`))
       return true
     }
+    if (result.status === 'handed-off') {
+      print(ui.done(`Updated Actovia ${result.from ?? ''}${result.from ? ' → ' : ''}${result.to} (the update it had downloaded).`))
+      return true
+    }
     print(ui.done(`Updated Actovia ${result.from ?? ''}${result.from ? ' → ' : ''}${result.to}.`))
     if (result.relaunched) print(ui.done('Reopened it.'))
     if (result.keychainPrompt) {

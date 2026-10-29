@@ -1,4 +1,4 @@
-import { describe, expect, test } from 'bun:test'
+import { beforeEach, describe, expect, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -31,7 +31,11 @@ async function installed() {
 
 /** plutil, ditto, codesign, pgrep and open, as the update calls them. */
 function fakeRun(
-  opts: { version?: string; running?: number; codesign?: number | ((command: string[]) => number) } = {}
+  opts: {
+    version?: string | (() => string)
+    running?: number
+    codesign?: number | ((command: string[]) => number)
+  } = {}
 ) {
   const ran: string[] = []
   const commands: string[][] = []
@@ -41,7 +45,7 @@ function fakeRun(
     commands.push(command)
     switch (command[0]) {
       case 'plutil':
-        return { code: 0, stdout: `${opts.version ?? '2.1.0'}\n` }
+        return { code: 0, stdout: `${(typeof opts.version === 'function' ? opts.version() : opts.version) ?? '2.1.0'}\n` }
       case 'ditto': {
         const app = join(command[4]!, 'Actovia.app')
         await mkdir(app)
@@ -59,12 +63,18 @@ function fakeRun(
   return { run, ran, commands }
 }
 
-const quietClient = (calls: string[] = []) =>
-  ({
+const quietClient = (calls: string[] = []) => {
+  const client = {
     authorized: false,
-    authorize: async () => calls.push('authorize'),
+    hostStatus: async () => ({ update: { mode: 'auto', state: 'idle', availableVersion: null } }),
+    authorize: async () => {
+      calls.push('authorize')
+      client.authorized = true
+    },
     quit: async () => calls.push('quit')
-  }) as unknown as DesktopClient
+  }
+  return client as unknown as DesktopClient
+}
 
 const scratchCaches = async () => {
   const dir = await mkdtemp(join(tmpdir(), 'actovia-caches-'))
@@ -78,6 +88,10 @@ const base = {
   sleep: async () => {},
   ...(await scratchCaches())
 }
+// A zip one test keeps must not be another's download.
+beforeEach(async () => {
+  Object.assign(base, await scratchCaches())
+})
 
 describe('actovia app update', () => {
   test('swaps the new app in once it is checked, leaving nothing behind', async () => {
@@ -138,6 +152,9 @@ describe('actovia app update', () => {
     const { run, ran } = fakeRun({ running: 2 })
     const client = {
       authorized: false,
+      hostStatus: async () => {
+        throw new DesktopApiError('old', 404, 'NOT_FOUND')
+      },
       authorize: async () => {
         throw new DesktopApiError('old', 404, 'NOT_FOUND')
       }
@@ -195,6 +212,119 @@ describe('actovia app update', () => {
     expect(
       await updateDesktopApp({ ...base, client: quietClient(), run, appPath, release: release(), fetch: fetchNever })
     ).toEqual({ status: 'current', version: '2.2.0' })
+  })
+
+  test('with the app running, the PIN is asked before anything is downloaded', async () => {
+    const { appPath } = await installed()
+    const { run } = fakeRun({ running: 5 })
+    const fetched: string[] = []
+    const client = {
+      authorized: false,
+      hostStatus: async () => ({ update: { mode: 'auto', state: 'idle', availableVersion: null } }),
+      authorize: async () => {
+        throw new DesktopApiError('Wrong PIN.', 401, 'WRONG_PIN')
+      }
+    } as unknown as DesktopClient
+    const fetchSpy = (async (url: string) => {
+      fetched.push(url)
+      return url === 'https://x/sums' ? new Response(`${sum}  ${zipName}\n`) : new Response(zip)
+    }) as unknown as typeof fetch
+    await expect(
+      updateDesktopApp({ ...base, client, run, appPath, release: release(), fetch: fetchSpy })
+    ).rejects.toThrow(/Wrong PIN/)
+    expect(fetched).not.toContain('https://x/zip')
+    expect(await readFile(join(appPath, 'which'), 'utf8')).toBe('old')
+  })
+
+  test('a download that passed its checksum is kept, so a run after a failed swap downloads nothing', async () => {
+    const { appPath } = await installed()
+    // First run: the app will not quit, so nothing is swapped.
+    const stuck = fakeRun({ running: 1000 })
+    await expect(
+      updateDesktopApp({
+        ...base,
+        client: quietClient(),
+        run: stuck.run,
+        appPath,
+        release: release(),
+        fetch: fetchFor(`${sum}  ${zipName}\n`),
+        quitTimeoutMs: -1
+      })
+    ).rejects.toThrow(/did not quit/)
+    expect(await readFile(join(base.cacheDir, zipName))).toEqual(zip)
+
+    const fetched: string[] = []
+    const fetchSpy = (async (url: string) => {
+      fetched.push(url)
+      return url === 'https://x/sums' ? new Response(`${sum}  ${zipName}\n`) : new Response('not this')
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({
+      ...base,
+      client: quietClient(),
+      run: fakeRun().run,
+      appPath,
+      release: release(),
+      fetch: fetchSpy
+    })
+    expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+    expect(fetched).toEqual(['https://x/sums'])
+  })
+
+  test('a kept zip that does not match the checksum is downloaded again', async () => {
+    const { appPath } = await installed()
+    await mkdir(base.cacheDir, { recursive: true })
+    await writeFile(join(base.cacheDir, zipName), 'tampered')
+    const result = await updateDesktopApp({
+      ...base,
+      client: quietClient(),
+      run: fakeRun().run,
+      appPath,
+      release: release(),
+      fetch: fetchFor(`${sum}  ${zipName}\n`)
+    })
+    expect(result).toMatchObject({ status: 'updated' })
+    expect(await readFile(join(base.cacheDir, zipName))).toEqual(zip)
+  })
+
+  test('the app already holds this update: it installs its own, and nothing is downloaded', async () => {
+    const { appPath } = await installed()
+    let installed_ = false
+    const { run } = fakeRun({ running: 1, version: () => (installed_ ? '2.2.0' : '2.1.0') })
+    const calls: string[] = []
+    const client = {
+      authorized: false,
+      hostStatus: async () => ({ update: { mode: 'auto', state: 'ready', availableVersion: '2.2.0' } }),
+      authorize: async () => calls.push('authorize'),
+      installUpdate: async () => {
+        calls.push('installUpdate')
+        installed_ = true
+      }
+    } as unknown as DesktopClient
+    const fetchNever = (async () => {
+      throw new Error('fetched')
+    }) as unknown as typeof fetch
+    const result = await updateDesktopApp({ ...base, client, run, appPath, release: release(), fetch: fetchNever })
+    expect(result).toEqual({ status: 'handed-off', from: '2.1.0', to: '2.2.0' })
+    expect(calls).toEqual(['authorize', 'installUpdate'])
+  })
+
+  test('an Actovia without the install route, or with another version ready, is updated as before', async () => {
+    for (const [availableVersion, install] of [
+      ['2.2.0', async () => { throw new DesktopApiError('old', 404, 'NOT_FOUND') }],
+      ['2.1.5', async () => { throw new Error('not called') }]
+    ] as const) {
+      const { appPath } = await installed()
+      const { run } = fakeRun({ running: 3 })
+      const client = {
+        authorized: false,
+        hostStatus: async () => ({ update: { mode: 'auto', state: 'ready', availableVersion } }),
+        authorize: async () => {},
+        installUpdate: install,
+        quit: async () => {}
+      } as unknown as DesktopClient
+      const result = await updateDesktopApp({ ...base, client, run, appPath, release: release(), fetch: fetchFor(`${sum}  ${zipName}\n`) })
+      expect(result).toMatchObject({ status: 'updated', to: '2.2.0' })
+    }
   })
 
   test('elsewhere it says where the update comes from', async () => {

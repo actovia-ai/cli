@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { access, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -84,6 +84,8 @@ export interface DesktopUpdateDeps {
   sleep?: (ms: number) => Promise<void>
   /** How long to wait for the running app to quit. */
   quitTimeoutMs?: number
+  /** How long to wait for the app to install the update it holds and come back. */
+  installTimeoutMs?: number
   /** The download's bar: where it is drawn, and whether. */
   progress?: Omit<DownloadOptions, 'print'>
   /** Where the installed version's zip is kept for the next update. */
@@ -97,6 +99,8 @@ const defaultUpdaterCacheZip = () => join(homedir(), 'Library', 'Caches', 'actov
 
 export type DesktopUpdateResult =
   | { status: 'current'; version: string }
+  /** The running app had already downloaded this version: it installed its own and restarted. */
+  | { status: 'handed-off'; from: string | null; to: string }
   | {
       status: 'updated'
       from: string | null
@@ -149,6 +153,25 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     )
   }
 
+  // A running app is quit through the API with a pass, so the PIN is asked
+  // now: a typo then costs nothing, not a download thrown away. And an app
+  // that already holds this version (its own updater downloaded it) is asked
+  // to install that — two installers racing for one bundle is the alternative.
+  let viaDock = false
+  if (await isAppRunning(appPath, run)) {
+    const status = await client.hostStatus().catch(() => null)
+    const ready = status?.update?.state === 'ready' && status.update.availableVersion === latest
+    try {
+      await ensurePass(client, askPin)
+    } catch (err) {
+      if (!quitsLikeTheDock(err)) throw err
+      viaDock = true
+    }
+    if (ready && !viaDock && (await handOff(appPath, latest, { client, print, run, sleep, timeoutMs: deps.installTimeoutMs }))) {
+      return { status: 'handed-off', from: current, to: latest }
+    }
+  }
+
   const sums = await fetchImpl(sumsAsset.browser_download_url)
   if (!sums.ok) throw new Error(`Could not read the release's checksums: ${sums.status}`)
   const expected = parseChecksums(await sums.text()).get(name)
@@ -158,11 +181,12 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
 
   // Only the blocks that changed, from the installed version's zip if one is
   // kept; otherwise (or if that fails) the whole zip, as before.
-  let bytes: Buffer | null = null
+  let bytes: Buffer | null = await readKept(join(cacheDir, name), matches)
+  if (bytes) print(`Using the ${label} downloaded before.`)
   const oldName = current ? desktopZipName(current, arch) : null
   const blockmap = release.assets.find(a => a.name === `${name}.blockmap`)
   const tagSuffix = `/${release.tag_name}/${name}`
-  if (oldName && blockmap && asset.browser_download_url.endsWith(tagSuffix)) {
+  if (!bytes && oldName && blockmap && asset.browser_download_url.endsWith(tagSuffix)) {
     const oldBlockmapUrl = `${asset.browser_download_url.slice(0, -tagSuffix.length)}/v${current}/${oldName}.blockmap`
     let failure: string | null = null
     for (const oldZip of [join(cacheDir, oldName), deps.updaterCacheZip ?? defaultUpdaterCacheZip()]) {
@@ -194,6 +218,10 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     }
   }
 
+  // Kept now, not after the swap: if the app will not quit, the next run
+  // starts from here instead of downloading it again.
+  await keepZip(cacheDir, name, bytes)
+
   // Unpacked beside the installed app, so the swap is a rename on one volume.
   const work = join(dirname(appPath), `.actovia-update-${process.pid}`)
   const old = `${appPath}.old`
@@ -210,7 +238,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     }
 
     const keychainPrompt = (await run(['codesign', '--verify', `-R=${TEAM_REQUIREMENT}`, appPath])).code !== 0
-    const wasRunning = await quitRunningApp(appPath, { client, askPin, print, run, sleep, timeoutMs: deps.quitTimeoutMs })
+    const wasRunning = await quitRunningApp(appPath, { client, askPin, print, run, sleep, viaDock, timeoutMs: deps.quitTimeoutMs })
 
     await rm(old, { recursive: true, force: true })
     await rename(appPath, old)
@@ -222,7 +250,6 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     }
     await rm(old, { recursive: true, force: true })
 
-    await keepZip(cacheDir, name, bytes)
     if (wasRunning) await run(['open', appPath])
     return { status: 'updated', from: current, to: latest, relaunched: wasRunning, keychainPrompt }
   } catch (err) {
@@ -269,28 +296,86 @@ async function quitRunningApp(
     print: (text: string) => void
     run: Run
     sleep: (ms: number) => Promise<void>
+    /** The API was found to have no way to quit it (see `quitsLikeTheDock`). */
+    viaDock?: boolean
     timeoutMs?: number
   }
 ): Promise<boolean> {
   const { client, askPin, print, run, sleep } = deps
   if (!(await isAppRunning(appPath, run))) return false
   print('Quitting Actovia so it can be replaced…')
-  try {
-    await ensurePass(client, askPin)
-    await client.quit()
-  } catch (err) {
-    // No way through the API: an Actovia without the route (or without the
-    // pass route, which a locked one answers as APP_LOCKED), or no PIN set.
-    const asDock =
-      err instanceof DesktopApiError &&
-      (err.status === 404 || ['UNREACHABLE', 'PIN_NOT_SET', 'APP_LOCKED'].includes(err.code))
-    if (!asDock) throw err
-    await run(['osascript', '-e', 'tell application "Actovia" to quit'])
+  let asDock = deps.viaDock ?? false
+  if (!asDock) {
+    try {
+      await ensurePass(client, askPin)
+      await client.quit()
+    } catch (err) {
+      if (!quitsLikeTheDock(err)) throw err
+      asDock = true
+    }
   }
+  if (asDock) await run(['osascript', '-e', 'tell application "Actovia" to quit'])
   const deadline = Date.now() + (deps.timeoutMs ?? 60_000)
   while (await isAppRunning(appPath, run)) {
     if (Date.now() > deadline) throw new Error('Actovia did not quit; nothing was changed. Quit it and try again.')
     await sleep(500)
   }
   return true
+}
+
+/**
+ * No way to quit it through the API: an Actovia without the route (or
+ * without the pass route, which a locked one answers as APP_LOCKED), or no
+ * PIN set. It is asked the way the Dock asks instead.
+ */
+function quitsLikeTheDock(err: unknown): boolean {
+  return (
+    err instanceof DesktopApiError &&
+    (err.status === 404 || ['UNREACHABLE', 'PIN_NOT_SET', 'APP_LOCKED'].includes(err.code))
+  )
+}
+
+/**
+ * Asks the running app to install the update its own updater downloaded
+ * (Squirrel, which checked the team's signature) and waits until the
+ * installed app is that version. False when this Actovia has no such route,
+ * so the update goes on as before.
+ */
+async function handOff(
+  appPath: string,
+  latest: string,
+  deps: {
+    client: DesktopClient
+    print: (text: string) => void
+    run: Run
+    sleep: (ms: number) => Promise<void>
+    timeoutMs?: number
+  }
+): Promise<boolean> {
+  const { client, print, run, sleep } = deps
+  try {
+    await client.installUpdate()
+  } catch (err) {
+    if (err instanceof DesktopApiError && err.status === 404) return false
+    throw err
+  }
+  print(`Actovia had already downloaded ${latest}; it is installing it and will reopen…`)
+  const deadline = Date.now() + (deps.timeoutMs ?? 180_000)
+  while ((await appVersion(appPath, run)) !== latest) {
+    if (Date.now() > deadline) {
+      throw new Error(`Actovia was asked to install ${latest} but is not on it yet. Check Settings → About.`)
+    }
+    await sleep(1000)
+  }
+  return true
+}
+
+/** A zip kept by an earlier run, when it is the one the release names. */
+async function readKept(path: string, matches: (bytes: Buffer) => boolean): Promise<Buffer | null> {
+  try {
+    const bytes = await readFile(path)
+    return matches(bytes) ? bytes : null
+  } catch {
+    return null
+  }
 }

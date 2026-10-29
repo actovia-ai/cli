@@ -279,6 +279,11 @@ export class DesktopClient {
     await this.call('POST', '/api/v1/host/restart')
   }
 
+  /** Has the app install the update it has downloaded, and restart (Actovia 2.5.2+; 404 before). */
+  async installUpdate(): Promise<void> {
+    await this.call('POST', '/api/v1/host/install-update')
+  }
+
   logs(query: LogQuery = {}): Promise<{ entries: LogEntry[]; total: number }> {
     const params = new URLSearchParams()
     if (query.date) params.set('date', query.date)

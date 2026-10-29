@@ -70,6 +70,13 @@ installing by hand — or if any of that fails, it downloads the whole zip.
 The app's own updater cache (`~/Library/Caches/actovia-updater/update.zip`)
 serves too, when the app last updated itself.
 
+When Actovia is running, the app-lock PIN is asked before anything is
+downloaded (three tries), and a zip that passed its checksum is kept at once,
+so a run that could not swap the app does not download it again. If the
+running app has already downloaded that version itself (Settings → About says
+"Update ready to install"), `app update` asks it to install its own and waits
+for it to come back, instead of downloading a second copy.
+
 Skills install into `~/.actovia/skills/<slug>/`, the same directory
 the Actovia desktop app reads — a skill installed via
 this CLI is immediately usable there too.
