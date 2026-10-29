@@ -1,5 +1,6 @@
 /**
- * Reads the app-lock PIN from the terminal without echoing it. Only from an
+ * Reads the app-lock PIN from the terminal, a star per digit (never the digit
+ * itself — and never nothing at all, which reads as a frozen prompt). Only from an
  * interactive terminal: the PIN is what tells Actovia a person is asking, so
  * it is never taken from an argument, an environment variable or a pipe.
  */
@@ -51,12 +52,33 @@ export function promptPin(
         // Ctrl-C, Ctrl-D, Escape
         if (ch === '\u0003' || ch === '\u0004' || ch === '\u001b') return done(() => reject(new PinCancelled()))
         if (ch === '\u007f' || ch === '\b') {
+          if (pin) output.write('\b \b')
           pin = pin.slice(0, -1)
           continue
         }
-        if (ch >= ' ') pin += ch
+        if (ch >= ' ') {
+          pin += ch
+          output.write('*')
+        }
       }
     }
     input.on('data', onData)
   })
+}
+
+/** What a second or third ask for the PIN knows: how many tries are left. */
+export interface PinRetry {
+  left: number
+}
+
+/** The PIN from the terminal; a retry says the last one was wrong. */
+export function askPinFromTerminal(
+  retry?: PinRetry,
+  input: PinInput = process.stdin,
+  output: PinOutput = process.stderr
+): Promise<string> {
+  const question = retry
+    ? `Wrong PIN. Try again (${retry.left} ${retry.left === 1 ? 'try' : 'tries'} left): `
+    : undefined
+  return promptPin(question, input, output)
 }

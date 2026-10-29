@@ -2,8 +2,8 @@ import { homedir } from 'node:os'
 
 import type { Command } from 'commander'
 
-import { type CliQuota, DesktopClient, type ScheduledTask } from '../lib/desktop-client'
-import { PinCancelled, promptPin } from '../lib/pin-prompt'
+import { type AskPin, type CliQuota, DesktopClient, type ScheduledTask } from '../lib/desktop-client'
+import { askPinFromTerminal, PinCancelled } from '../lib/pin-prompt'
 import { ensurePass, whileUnlocked } from '../lib/session'
 import { withSpinner } from '../lib/spinner'
 import { ago, makeUi, meter, type Ui, uiFor } from '../lib/ui'
@@ -18,7 +18,7 @@ import { reportError } from './report-error'
 
 export interface ManageDeps {
   client?: DesktopClient
-  askPin?: () => Promise<string>
+  askPin?: AskPin
   print?: (text: string) => void
   now?: () => number
   color?: boolean
@@ -26,7 +26,7 @@ export interface ManageDeps {
 
 const defaults = (deps: ManageDeps) => ({
   client: deps.client ?? new DesktopClient(),
-  askPin: deps.askPin ?? (() => promptPin()),
+  askPin: deps.askPin ?? askPinFromTerminal,
   print: deps.print ?? ((text: string) => console.log(text)),
   now: deps.now ?? Date.now,
   ui: uiFor(deps)

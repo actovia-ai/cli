@@ -1,4 +1,4 @@
-import { DesktopApiError, type DesktopClient } from './desktop-client'
+import { type AskPin, DesktopApiError, type DesktopClient } from './desktop-client'
 
 /**
  * A read the desktop app refuses while it is locked: the first refusal asks
@@ -7,7 +7,7 @@ import { DesktopApiError, type DesktopClient } from './desktop-client'
  */
 export async function whileUnlocked<T>(
   client: DesktopClient,
-  askPin: () => Promise<string>,
+  askPin: AskPin,
   read: () => Promise<T>
 ): Promise<T> {
   try {
@@ -20,6 +20,6 @@ export async function whileUnlocked<T>(
 }
 
 /** Buys a pass with the PIN unless this run holds one already. */
-export async function ensurePass(client: DesktopClient, askPin: () => Promise<string>): Promise<void> {
+export async function ensurePass(client: DesktopClient, askPin: AskPin): Promise<void> {
   if (!client.authorized) await client.authorize(askPin)
 }

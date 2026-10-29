@@ -8,8 +8,8 @@ import {
   updateDesktopApp,
   versionOf
 } from '../lib/desktop-app'
-import { DesktopClient } from '../lib/desktop-client'
-import { PinCancelled, promptPin } from '../lib/pin-prompt'
+import { type AskPin, DesktopClient } from '../lib/desktop-client'
+import { askPinFromTerminal, PinCancelled } from '../lib/pin-prompt'
 import { ensurePass } from '../lib/session'
 import { uiFor } from '../lib/ui'
 import { isNewerVersion } from '../lib/updater'
@@ -24,14 +24,14 @@ import { reportError } from './report-error'
 
 export interface AppDeps {
   client?: DesktopClient
-  askPin?: () => Promise<string>
+  askPin?: AskPin
   print?: (text: string) => void
   color?: boolean
 }
 
 const defaults = (deps: AppDeps) => ({
   client: deps.client ?? new DesktopClient(),
-  askPin: deps.askPin ?? (() => promptPin()),
+  askPin: deps.askPin ?? askPinFromTerminal,
   print: deps.print ?? ((text: string) => console.log(text)),
   ui: uiFor(deps)
 })

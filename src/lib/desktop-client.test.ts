@@ -37,6 +37,42 @@ describe('DesktopClient', () => {
     expect(seen[1]!.headers[PRESENCE_HEADER]).toBe('PASS')
   })
 
+  test('a wrong PIN is asked again, three tries in all', async () => {
+    let tries = 0
+    const { impl } = fakeFetch(s =>
+      JSON.parse(s.body!).pin === '1234'
+        ? { status: 200, body: { token: 'PASS', expiresAt: 1 } }
+        : { status: 401, body: { error: { code: 'WRONG_PIN' } } }
+    )
+    const retries: Array<number | undefined> = []
+    const client = new DesktopClient({ fetch: impl })
+    await client.authorize(async retry => {
+      retries.push(retry?.left)
+      return ++tries < 3 ? '0000' : '1234'
+    })
+    expect(client.authorized).toBe(true)
+    expect(retries).toEqual([undefined, 2, 1])
+  })
+
+  test('the third wrong PIN is the last; a lockout is not retried', async () => {
+    for (const [status, code, asked] of [
+      [401, 'WRONG_PIN', 3],
+      [429, 'PIN_LOCKED_OUT', 1],
+      [423, 'CLI_PIN_DISABLED', 1]
+    ] as const) {
+      let n = 0
+      const { impl } = fakeFetch(() => ({ status, body: { error: { code, retryAfterMs: 1000 } } }))
+      const error = await new DesktopClient({ fetch: impl })
+        .authorize(async () => {
+          n++
+          return '0000'
+        })
+        .catch(e => e)
+      expect(error.code).toBe(code)
+      expect(n).toBe(asked)
+    }
+  })
+
   test('says what each refusal means', async () => {
     const cases: Array<[number, unknown, RegExp]> = [
       [401, { error: { code: 'WRONG_PIN' } }, /Wrong PIN/],

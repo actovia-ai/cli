@@ -1,3 +1,4 @@
+import type { PinRetry } from './pin-prompt'
 import { assertListenerIsActovia } from './listener'
 
 /**
@@ -46,6 +47,15 @@ export interface DevicesState {
 }
 
 /** `GET /api/v1/host/status` (Actovia 2.2.0+): answered while locked too. */
+/** Asks for the app-lock PIN; a retry says how many tries are left. */
+export type AskPin = (retry?: PinRetry) => Promise<string>
+
+/**
+ * Tries per PIN prompt. Actovia's own limit is stricter after five misses
+ * (each doubles the wait), so three typos never reach it.
+ */
+export const PIN_TRIES = 3
+
 export interface HostStatus {
   version: string
   platform: string
@@ -216,27 +226,36 @@ export class DesktopClient {
    * Trades the app-lock PIN for a pass; later calls of this client carry it.
    * What listens is checked before the PIN is even asked for.
    */
-  async authorize(askPin: () => Promise<string>): Promise<CliPass> {
+  async authorize(askPin: AskPin): Promise<CliPass> {
     await this.verifyListener(this.baseUrl)
-    const pin = await askPin()
-    let pass: CliPass
-    try {
-      pass = await this.call<CliPass>('POST', '/api/v1/lock/cli-pass', { pin })
-    } catch (err) {
-      // Actovia 2.1.0+ answers the pass while locked (a correct PIN unlocks
-      // it). An older one has no such route, and while locked its lock gate
-      // answers for the missing route instead of a 404.
-      if (err instanceof DesktopApiError && err.code === 'APP_LOCKED') {
-        throw new DesktopApiError(
-          'This Actovia is too old for this command (it needs 2.1.0 or later), and it is locked. Unlock it on its own screen and update it (Settings → About, or download the latest from https://github.com/actovia-ai/actovia/releases/latest), then try again.',
-          err.status,
-          err.code
-        )
+    let pass: CliPass | null = null
+    for (let attempt = 1; !pass; attempt++) {
+      const pin = await askPin(attempt === 1 ? undefined : { left: PIN_TRIES - attempt + 1 })
+      try {
+        pass = await this.call<CliPass>('POST', '/api/v1/lock/cli-pass', { pin })
+      } catch (err) {
+        // A typo gets another go; a lockout, or the last try, ends it.
+        if (err instanceof DesktopApiError && err.code === 'WRONG_PIN' && attempt < PIN_TRIES) continue
+        this.refusal(err)
       }
-      throw err
     }
     this.pass = pass.token
     return pass
+  }
+
+  /** What a refused pass means, said for this CLI. */
+  private refusal(err: unknown): never {
+    // Actovia 2.1.0+ answers the pass while locked (a correct PIN unlocks
+    // it). An older one has no such route, and while locked its lock gate
+    // answers for the missing route instead of a 404.
+    if (err instanceof DesktopApiError && err.code === 'APP_LOCKED') {
+      throw new DesktopApiError(
+        'This Actovia is too old for this command (it needs 2.1.0 or later), and it is locked. Unlock it on its own screen and update it (Settings → About, or download the latest from https://github.com/actovia-ai/actovia/releases/latest), then try again.',
+        err.status,
+        err.code
+      )
+    }
+    throw err
   }
 
   /** Whether a pass is held (bought with the PIN in this run). */

@@ -1,7 +1,7 @@
 import type { Command } from 'commander'
 
-import { DesktopClient, type LogEntry, type LogQuery } from '../lib/desktop-client'
-import { PinCancelled, promptPin } from '../lib/pin-prompt'
+import { type AskPin, DesktopClient, type LogEntry, type LogQuery } from '../lib/desktop-client'
+import { askPinFromTerminal, PinCancelled } from '../lib/pin-prompt'
 import { whileUnlocked } from '../lib/session'
 import { colorEnabled, makeStyle } from '../lib/style'
 import { reportError } from './report-error'
@@ -24,7 +24,7 @@ export interface LogsOptions {
 
 export interface LogsDeps {
   client?: DesktopClient
-  askPin?: () => Promise<string>
+  askPin?: AskPin
   print?: (text: string) => void
   sleep?: (ms: number) => Promise<void>
   /** Stops `--follow` (tests); runs until interrupted otherwise. */
@@ -59,7 +59,7 @@ const keyOf = (e: LogEntry) => `${e.timestamp}|${e.scope.name}|${e.body}`
 
 export async function runLogs(opts: LogsOptions = {}, deps: LogsDeps = {}): Promise<LogEntry[] | null> {
   const client = deps.client ?? new DesktopClient()
-  const askPin = deps.askPin ?? (() => promptPin())
+  const askPin = deps.askPin ?? askPinFromTerminal
   const print = deps.print ?? ((text: string) => console.log(text))
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms)))
   const keepFollowing = deps.keepFollowing ?? (() => true)

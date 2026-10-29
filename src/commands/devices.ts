@@ -2,12 +2,13 @@ import type { Command } from 'commander'
 import { renderUnicodeCompact } from 'uqr'
 
 import {
+  type AskPin,
   DesktopClient,
   type DevicesState,
   type PairedDevice,
   type PairingWindow
 } from '../lib/desktop-client'
-import { PinCancelled, promptPin } from '../lib/pin-prompt'
+import { askPinFromTerminal, PinCancelled } from '../lib/pin-prompt'
 import { withSpinner } from '../lib/spinner'
 import { ago, uiFor } from '../lib/ui'
 import { reportError } from './report-error'
@@ -21,7 +22,7 @@ import { reportError } from './report-error'
 
 export interface DeviceDeps {
   client?: DesktopClient
-  askPin?: () => Promise<string>
+  askPin?: AskPin
   print?: (text: string) => void
   sleep?: (ms: number) => Promise<void>
   now?: () => number
@@ -30,7 +31,7 @@ export interface DeviceDeps {
 
 const defaults = (deps: DeviceDeps) => ({
   client: deps.client ?? new DesktopClient(),
-  askPin: deps.askPin ?? (() => promptPin()),
+  askPin: deps.askPin ?? askPinFromTerminal,
   print: deps.print ?? ((text: string) => console.log(text)),
   sleep: deps.sleep ?? ((ms: number) => new Promise<void>(r => setTimeout(r, ms))),
   now: deps.now ?? Date.now,

@@ -4,7 +4,7 @@ import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { buildFromBlockmap } from './blockmap-delta'
-import { DesktopApiError, type DesktopClient } from './desktop-client'
+import { type AskPin, DesktopApiError, type DesktopClient } from './desktop-client'
 import { download, type DownloadOptions } from './progress'
 import { parseChecksums } from './self-update'
 import { ensurePass } from './session'
@@ -73,7 +73,7 @@ export function desktopZipName(version: string, arch: string): string | null {
 
 export interface DesktopUpdateDeps {
   client: DesktopClient
-  askPin: () => Promise<string>
+  askPin: AskPin
   print: (text: string) => void
   fetch?: typeof fetch
   run?: Run
@@ -265,7 +265,7 @@ async function quitRunningApp(
   appPath: string,
   deps: {
     client: DesktopClient
-    askPin: () => Promise<string>
+    askPin: AskPin
     print: (text: string) => void
     run: Run
     sleep: (ms: number) => Promise<void>
