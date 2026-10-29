@@ -1,3 +1,10 @@
+# [2.8.0](https://github.com/actovia-ai/cli/compare/v2.7.0...v2.8.0) (2026-10-29)
+
+
+### Features
+
+* **app:** use the update Actovia already downloaded, and survive it restarting into it ([1bed917](https://github.com/actovia-ai/cli/commit/1bed917d372b56f2e0c97f44be980cbab33c2ee2))
+
 # [2.7.0](https://github.com/actovia-ai/cli/compare/v2.6.0...v2.7.0) (2026-10-29)
 
 
