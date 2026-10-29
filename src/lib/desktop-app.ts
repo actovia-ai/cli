@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto'
-import { access, mkdir, rename, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, readdir, rename, rm, writeFile } from 'node:fs/promises'
 import { homedir } from 'node:os'
 import { dirname, join } from 'node:path'
 
+import { buildFromBlockmap } from './blockmap-delta'
 import { DesktopApiError, type DesktopClient } from './desktop-client'
 import { download, type DownloadOptions } from './progress'
 import { parseChecksums } from './self-update'
@@ -83,16 +84,25 @@ export interface DesktopUpdateDeps {
   quitTimeoutMs?: number
   /** The download's bar: where it is drawn, and whether. */
   progress?: Omit<DownloadOptions, 'print'>
+  /** Where the installed version's zip is kept for the next update. */
+  cacheDir?: string
+  /** electron-updater's copy of the zip it last downloaded, when the app updated itself. */
+  updaterCacheZip?: string
 }
+
+const defaultCacheDir = () => join(homedir(), 'Library', 'Caches', 'actovia-cli', 'desktop')
+const defaultUpdaterCacheZip = () => join(homedir(), 'Library', 'Caches', 'actovia-updater', 'update.zip')
 
 export type DesktopUpdateResult =
   | { status: 'current'; version: string }
   | { status: 'updated'; from: string | null; to: string; relaunched: boolean }
 
 /**
- * Replaces the installed app with the latest release: downloaded, checked
- * against the release's `SHA256SUMS` (a release without them is refused) and
- * its code signature, unpacked beside the installed one, and swapped in once
+ * Replaces the installed app with the latest release: downloaded — only the
+ * blocks that changed when the installed version's zip is kept from the last
+ * update (`buildFromBlockmap`), else whole — checked against the release's
+ * `SHA256SUMS` (a release without them is refused) and its code signature,
+ * unpacked beside the installed one, and swapped in once
  * the running app has quit — through the API with the app-lock PIN, which
  * needs no permission to control another app. Reopened afterwards if it was
  * running. Nothing is changed until everything has been checked.
@@ -127,12 +137,49 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     )
   }
 
-  const bytes = await download(await fetchImpl(asset.browser_download_url), `Actovia ${latest}`, { ...deps.progress, print })
   const sums = await fetchImpl(sumsAsset.browser_download_url)
   if (!sums.ok) throw new Error(`Could not read the release's checksums: ${sums.status}`)
   const expected = parseChecksums(await sums.text()).get(name)
-  if (!expected || expected !== createHash('sha256').update(bytes).digest('hex')) {
-    throw new Error(`The downloaded ${name} does not match the release's checksum; nothing was changed.`)
+  const matches = (bytes: Buffer) => expected === createHash('sha256').update(bytes).digest('hex')
+  const label = `Actovia ${latest}`
+  const cacheDir = deps.cacheDir ?? defaultCacheDir()
+
+  // Only the blocks that changed, from the installed version's zip if one is
+  // kept; otherwise (or if that fails) the whole zip, as before.
+  let bytes: Buffer | null = null
+  const oldName = current ? desktopZipName(current, arch) : null
+  const blockmap = release.assets.find(a => a.name === `${name}.blockmap`)
+  const tagSuffix = `/${release.tag_name}/${name}`
+  if (oldName && blockmap && asset.browser_download_url.endsWith(tagSuffix)) {
+    const oldBlockmapUrl = `${asset.browser_download_url.slice(0, -tagSuffix.length)}/v${current}/${oldName}.blockmap`
+    let failure: string | null = null
+    for (const oldZip of [join(cacheDir, oldName), deps.updaterCacheZip ?? defaultUpdaterCacheZip()]) {
+      if (!(await exists(oldZip))) continue
+      try {
+        const built = await buildFromBlockmap({
+          oldZip,
+          oldBlockmapUrl,
+          newBlockmapUrl: blockmap.browser_download_url,
+          url: asset.browser_download_url,
+          fetch: fetchImpl,
+          label,
+          print,
+          progress: deps.progress
+        })
+        if (!matches(built.bytes)) throw new Error('the rebuilt zip does not match the release’s checksum')
+        bytes = built.bytes
+        break
+      } catch (err) {
+        failure = (err as Error).message
+      }
+    }
+    if (!bytes && failure) print(`Could not download only what changed (${failure}); downloading the whole app.`)
+  }
+  if (!bytes) {
+    bytes = await download(await fetchImpl(asset.browser_download_url), label, { ...deps.progress, print })
+    if (!matches(bytes)) {
+      throw new Error(`The downloaded ${name} does not match the release's checksum; nothing was changed.`)
+    }
   }
 
   // Unpacked beside the installed app, so the swap is a rename on one volume.
@@ -162,6 +209,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     }
     await rm(old, { recursive: true, force: true })
 
+    await keepZip(cacheDir, name, bytes)
     if (wasRunning) await run(['open', appPath])
     return { status: 'updated', from: current, to: latest, relaunched: wasRunning }
   } catch (err) {
@@ -172,6 +220,21 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
     throw err
   } finally {
     await rm(work, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Keeps the installed version's zip for the next update's blockmap download,
+ * in place of any older one. Best effort: an update without it is a whole
+ * download next time, nothing worse.
+ */
+async function keepZip(cacheDir: string, name: string, bytes: Buffer): Promise<void> {
+  try {
+    await mkdir(cacheDir, { recursive: true })
+    for (const other of await readdir(cacheDir)) if (other !== name) await rm(join(cacheDir, other), { force: true })
+    await writeFile(join(cacheDir, name), bytes)
+  } catch {
+    // Disk full, a read-only cache: the update itself is done.
   }
 }
 

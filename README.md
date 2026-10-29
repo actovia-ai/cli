@@ -26,7 +26,8 @@ actovia status [--json]            # the desktop app at a glance: version, lock,
 actovia doctor [--json]            # what is wrong, and how to fix it
 actovia open                       # launch the Actovia desktop app
 actovia app check [--json]         # is a newer desktop app out?
-actovia app update                 # install it (macOS: checked download, quit, swap, reopen)
+actovia app update                 # install it (macOS: checked download, quit, swap, reopen;
+                                   #   after the first, only the blocks that changed — see below)
 actovia app quit | restart         # quit or restart the desktop app
 actovia update [--check]           # update the CLI to the newest version (--check: only report)
 actovia pair [--invert]            # pair a phone with this machine's Actovia (QR code in the terminal)
@@ -58,6 +59,16 @@ PIN unlocks it. `status` and `doctor` never ask. Most of this needs Actovia 2.2.
 or later. Ten wrong PINs and Actovia stops
 accepting it here until it is typed on its own lock screen. `--invert` draws the
 QR code for a light terminal background.
+
+`app update` on macOS keeps the installed version's zip in
+`~/Library/Caches/actovia-cli/desktop/` (about 190 MB, one version at a time).
+The next update compares the two versions' published blockmaps and downloads
+only the blocks of the new zip that changed (about a quarter of it), the way
+the app updates itself; the rebuilt zip is checked against the release's
+`SHA256SUMS` like a whole one. With nothing kept — the first update after
+installing by hand — or if any of that fails, it downloads the whole zip.
+The app's own updater cache (`~/Library/Caches/actovia-updater/update.zip`)
+serves too, when the app last updated itself.
 
 Skills install into `~/.actovia/skills/<slug>/`, the same directory
 the Actovia desktop app reads — a skill installed via
