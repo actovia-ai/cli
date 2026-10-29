@@ -30,11 +30,15 @@ async function installed() {
 }
 
 /** plutil, ditto, codesign, pgrep and open, as the update calls them. */
-function fakeRun(opts: { version?: string; running?: number; codesign?: number } = {}) {
+function fakeRun(
+  opts: { version?: string; running?: number; codesign?: number | ((command: string[]) => number) } = {}
+) {
   const ran: string[] = []
+  const commands: string[][] = []
   let running = opts.running ?? 0
   const run: Run = async command => {
     ran.push(command[0]!)
+    commands.push(command)
     switch (command[0]) {
       case 'plutil':
         return { code: 0, stdout: `${opts.version ?? '2.1.0'}\n` }
@@ -45,14 +49,14 @@ function fakeRun(opts: { version?: string; running?: number; codesign?: number }
         return { code: 0, stdout: '' }
       }
       case 'codesign':
-        return { code: opts.codesign ?? 0, stdout: '' }
+        return { code: typeof opts.codesign === 'function' ? opts.codesign(command) : (opts.codesign ?? 0), stdout: '' }
       case 'pgrep':
         return { code: running-- > 0 ? 0 : 1, stdout: '' }
       default:
         return { code: 0, stdout: '' }
     }
   }
-  return { run, ran }
+  return { run, ran, commands }
 }
 
 const quietClient = (calls: string[] = []) =>
@@ -87,7 +91,7 @@ describe('actovia app update', () => {
       release: release(),
       fetch: fetchFor(`${sum}  ${zipName}\n`)
     })
-    expect(result).toEqual({ status: 'updated', from: '2.1.0', to: '2.2.0', relaunched: false })
+    expect(result).toEqual({ status: 'updated', from: '2.1.0', to: '2.2.0', relaunched: false, keychainPrompt: false })
     expect(await readFile(join(appPath, 'which'), 'utf8')).toBe('new')
     expect(await readdir(dir)).toEqual(['Actovia.app'])
     expect(ran).not.toContain('open')
@@ -155,6 +159,30 @@ describe('actovia app update', () => {
       ).rejects.toThrow(message)
       expect(await readFile(join(appPath, 'which'), 'utf8')).toBe('old')
       expect(await readdir(dir)).toEqual(['Actovia.app'])
+    }
+  })
+
+  test('only replacing an app the team did not sign makes macOS ask for the keychain again', async () => {
+    const requirement = '-R=anchor apple generic and certificate leaf[subject.OU] = "A542S7SY83"'
+    for (const [oldSigned, prompt] of [
+      [true, false],
+      [false, true]
+    ] as const) {
+      const { appPath } = await installed()
+      // The installed app is checked against the team's requirement before it is replaced.
+      const { run, commands } = fakeRun({
+        codesign: command => (command.includes(requirement) && command.at(-1) === appPath && !oldSigned ? 3 : 0)
+      })
+      const result = await updateDesktopApp({
+        ...base,
+        client: quietClient(),
+        run,
+        appPath,
+        release: release(),
+        fetch: fetchFor(`${sum}  ${zipName}\n`)
+      })
+      expect(result).toMatchObject({ status: 'updated', keychainPrompt: prompt })
+      expect(commands.some(c => c.includes(requirement) && c.at(-1) === appPath)).toBe(true)
     }
   })
 
@@ -263,7 +291,7 @@ describe('actovia app update, only what changed', () => {
       release: deltaRelease(),
       fetch: fetchImpl
     })
-    expect(result).toEqual({ status: 'updated', from: '2.1.0', to: '2.2.0', relaunched: false })
+    expect(result).toEqual({ status: 'updated', from: '2.1.0', to: '2.2.0', relaunched: false, keychainPrompt: false })
     expect(await readFile(join(appPath, 'which'), 'utf8')).toBe('new')
     expect(await readdir(dir)).toEqual(['Actovia.app'])
     const zipAsks = asked.filter(a => a.url.endsWith(zipName))

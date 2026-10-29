@@ -94,12 +94,14 @@ export async function runAppUpdate(deps: AppDeps = {}): Promise<boolean> {
       return true
     }
     print(ui.done(`Updated Actovia ${result.from ?? ''}${result.from ? ' → ' : ''}${result.to}.`))
-    if (result.relaunched) {
-      // Until the builds are signed, every new version is a new app to the
-      // Keychain; nothing can answer that dialog from here.
-      print(ui.done('Reopened it.'))
-      print(ui.warn('macOS asks once for the login password, so the new version can read its keychain item'))
-      print(ui.st.dim('  ("Actovia Safe Storage"). Until someone allows it at the screen, the app waits at that prompt.'))
+    if (result.relaunched) print(ui.done('Reopened it.'))
+    if (result.keychainPrompt) {
+      // Replacing an ad-hoc build with the first signed one: the Keychain sees
+      // a new app once (later signed updates keep its requirement), and
+      // nothing can answer that dialog from here.
+      print(ui.warn('macOS asks once for the login password, so the signed version can read its keychain item'))
+      print(ui.st.dim('  ("Actovia Safe Storage"; choose Always Allow). Until someone allows it at the screen, the app waits'))
+      print(ui.st.dim('  at that prompt. Later updates do not ask again.'))
     }
     return true
   } catch (err) {

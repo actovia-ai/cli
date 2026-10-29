@@ -18,6 +18,8 @@ import { getLatestRelease, type GithubRelease, isNewerVersion } from './updater'
 
 export const DESKTOP_GITHUB_API = 'https://api.github.com/repos/actovia-ai/actovia'
 export const DESKTOP_RELEASES_URL = 'https://github.com/actovia-ai/actovia/releases/latest'
+/** `codesign -R`: signed through Apple's chain by the Developer ID team every release is signed by (since 2.5). */
+export const TEAM_REQUIREMENT = 'anchor apple generic and certificate leaf[subject.OU] = "A542S7SY83"'
 /** The first Actovia with `/api/v1/host` (status, lock, quit, restart). */
 export const HOST_ROUTES_SINCE = '2.2.0'
 
@@ -95,7 +97,17 @@ const defaultUpdaterCacheZip = () => join(homedir(), 'Library', 'Caches', 'actov
 
 export type DesktopUpdateResult =
   | { status: 'current'; version: string }
-  | { status: 'updated'; from: string | null; to: string; relaunched: boolean }
+  | {
+      status: 'updated'
+      from: string | null
+      to: string
+      relaunched: boolean
+      /**
+       * The replaced app was not the team's (ad-hoc, before 2.5): the Keychain
+       * asks once for "Actovia Safe Storage" before the new one can read it.
+       */
+      keychainPrompt: boolean
+    }
 
 /**
  * Replaces the installed app with the latest release: downloaded — only the
@@ -197,6 +209,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
       throw new Error(`The downloaded Actovia.app fails its signature check; nothing was changed.`)
     }
 
+    const keychainPrompt = (await run(['codesign', '--verify', `-R=${TEAM_REQUIREMENT}`, appPath])).code !== 0
     const wasRunning = await quitRunningApp(appPath, { client, askPin, print, run, sleep, timeoutMs: deps.quitTimeoutMs })
 
     await rm(old, { recursive: true, force: true })
@@ -211,7 +224,7 @@ export async function updateDesktopApp(deps: DesktopUpdateDeps): Promise<Desktop
 
     await keepZip(cacheDir, name, bytes)
     if (wasRunning) await run(['open', appPath])
-    return { status: 'updated', from: current, to: latest, relaunched: wasRunning }
+    return { status: 'updated', from: current, to: latest, relaunched: wasRunning, keychainPrompt }
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code
     if (code === 'EACCES' || code === 'EPERM') {
