@@ -39,8 +39,8 @@ export function parseBlockmap(gzipped: Uint8Array): Blockmap {
     checksums.length !== sizes.length ||
     !checksums.every(c => typeof c === 'string') ||
     !sizes.every(s => Number.isSafeInteger(s) && s > 0) ||
-    !Number.isSafeInteger(file.offset) ||
-    file.offset < 0
+    // The file is the whole zip: its blocks start at the zip's first byte.
+    file.offset !== 0
   ) {
     throw new Error('the blockmap is damaged')
   }

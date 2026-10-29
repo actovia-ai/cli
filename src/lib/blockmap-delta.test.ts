@@ -73,7 +73,8 @@ describe('parseBlockmap', () => {
       { ...map, version: '1' },
       { ...map, files: [file, file] },
       { ...map, files: [{ ...file, sizes: [1] }] },
-      { ...map, files: [{ ...file, sizes: [1000, -1, 500] }] }
+      { ...map, files: [{ ...file, sizes: [1000, -1, 500] }] },
+      { ...map, files: [{ ...file, offset: 10 }] }
     ]) {
       expect(() => parseBlockmap(gz(bad as Blockmap))).toThrow()
     }
@@ -129,6 +130,37 @@ describe('buildFromBlockmap', () => {
       [3000, 4000],
       [9000, 10_000]
     ])
+  })
+
+  test('moved blocks are copied from where the old zip has them, and nearby downloads share one range', async () => {
+    const old = random(10_000, 1)
+    const block = (i: number) => old.subarray(i * 1000, (i + 1) * 1000)
+    // Old block 7 moves to the front; three new blocks, the first two 1000 bytes apart.
+    const fresh = Buffer.concat([block(7), random(1000, 2), block(0), random(1000, 3), block(1), block(2), random(1000, 4)])
+    const dir = await mkdtemp(join(tmpdir(), 'actovia-blockmap-'))
+    const oldZip = join(dir, 'old.zip')
+    await writeFile(oldZip, old)
+    const { fetchImpl, asked } = releaseHost({
+      'https://x/new.zip': fresh,
+      'https://x/new.zip.blockmap': gz(blockmapOf(fresh)),
+      'https://x/old.zip.blockmap': gz(blockmapOf(old))
+    })
+    const result = await buildFromBlockmap({
+      oldZip,
+      oldBlockmapUrl: 'https://x/old.zip.blockmap',
+      newBlockmapUrl: 'https://x/new.zip.blockmap',
+      url: 'https://x/new.zip',
+      fetch: fetchImpl,
+      mergeGap: 1500,
+      ...quiet
+    })
+    expect(Buffer.compare(result.bytes, fresh)).toBe(0)
+    // 1000-2000 and 3000-4000 merge (old block 0 between them comes along); 6000-7000 is 2000 away.
+    expect(asked.filter(a => a.url === 'https://x/new.zip').map(a => a.range)).toEqual([
+      [1000, 4000],
+      [6000, 7000]
+    ])
+    expect(result.downloaded).toBe(4000)
   })
 
   test('an old zip that is not the one the old blockmap describes is refused', async () => {
