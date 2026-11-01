@@ -4,6 +4,10 @@ A CLI for the Actovia ecosystem: launch the Actovia desktop app, check for CLI
 updates, and browse/install [Agent Skills](https://skills.sh) from the
 terminal — either interactively or as scriptable JSON-emitting commands.
 
+[Desktop & docs](https://actovia.yancey.app) · [iPhone & iPad companion](https://apps.apple.com/app/actovia/id6824829679) · [Source](https://github.com/actovia-ai/cli)
+
+The CLI controls a running desktop installation; it does not replace the desktop backend. Scheduled work runs on that computer while Actovia is open. Use the desktop's global Scheduled page to inspect both Chat and Group tasks, and continue in Chat to create or edit Chat schedules.
+
 ## Install
 
 **Requires [Bun](https://bun.sh) `>=1.3.0`** on `PATH` — this CLI is built on
@@ -37,7 +41,7 @@ actovia lock                       # lock the desktop app now
 actovia logs [-f] [-n 50] [--level warn] [--scope kernel] [--trace <id>] [-q words] [--date YYYY-MM-DD] [--json]
 actovia backup [--json]            # list database backups
 actovia backup create [--json]     # back up now
-actovia tasks [--json]             # Philharmonic's scheduled tasks
+actovia tasks [--json]             # scheduled tasks from Chat and Philharmonic
 actovia quota [--json]             # what Claude Code and Codex last reported of your plan quota
 actovia usage [--days 30] [--json] # tokens the models have used
 actovia skills                     # interactive TUI: browse, view audits, install/uninstall
