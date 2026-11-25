@@ -44,7 +44,7 @@
     "@types/react": "19.3.0",
     "ink-testing-library": "4.0.0",
     "react-devtools-core": "^8.0.0",
-    "semantic-release": "^25.0.9",
+    "semantic-release": "^26.0.1",
     "typescript": "5.9.3"
   }
 }
